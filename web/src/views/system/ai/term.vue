@@ -3,18 +3,23 @@
     <!-- 头部区域 -->
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">AI 术语分析工作台</h1>
-        <p class="page-subtitle">专业术语分析、权重评估、多语言对照</p>
+        <h1 class="page-title">中英文术语对照分析系统</h1>
+        <p class="page-subtitle">专业术语智能识别 · 中英文对照表 · 权重评估分析</p>
       </div>
     </div>
 
     <!-- 功能模式切换 -->
     <div class="mode-tabs">
       <el-radio-group v-model="analysisMode">
-        <el-radio-button label="term">术语分析</el-radio-button>
         <el-radio-button label="compare">对照翻译</el-radio-button>
+        <el-radio-button label="term">术语分析</el-radio-button>
         <el-radio-button label="weight">权重评估</el-radio-button>
+        <el-radio-button label="image">图片分析</el-radio-button>
+        <el-radio-button label="document">文档分析</el-radio-button>
       </el-radio-group>
+      <el-button v-if="!showExampleSection && ['term', 'compare', 'weight'].includes(analysisMode)" text @click="showExampleSection = true" class="example-toggle">
+        <el-icon><Document /></el-icon> 显示示例
+      </el-button>
     </div>
 
     <!-- 输入区域 -->
@@ -27,7 +32,6 @@
               <el-select v-model="inputLang" placeholder="选择语言" style="width: 120px">
                 <el-option label="中文" value="zh"></el-option>
                 <el-option label="英语" value="en"></el-option>
-                <el-option label="日语" value="ja"></el-option>
               </el-select>
               <el-button text @click="clearInput" v-if="inputText">
                 <el-icon><Delete /></el-icon> 清空
@@ -46,9 +50,14 @@
           <el-button type="primary" @click="analyze" :loading="analyzing">
             <el-icon><DataAnalysis /></el-icon> 开始分析
           </el-button>
-          <el-button @click="loadExample">
-            <el-icon><Document /></el-icon> 加载示例
-          </el-button>
+          <div class="example-actions">
+            <el-button v-if="showExampleSection" text @click="showExampleSection = false">
+              <el-icon><Hide /></el-icon> 隐藏示例
+            </el-button>
+            <el-button v-if="showExampleSection" text @click="loadExample">
+              <el-icon><Document /></el-icon> 加载示例
+            </el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -206,60 +215,111 @@
 
     <!-- 对照翻译模式 -->
     <div v-if="analysisMode === 'compare'" class="analysis-results">
-      <el-card class="compare-card" v-if="analysisResult">
+      <el-card class="compare-card">
         <template #header>
           <div class="card-header">
-            <span>中英文对照</span>
-            <el-button text @click="toggleCompare">
-              <el-icon>
-                <component :is="showSideBySide ? 'Top' : 'Bottom'" />
-              </el-icon>
-              {{ showSideBySide ? '上下对照' : '左右对照' }}
-            </el-button>
+            <span>中英文术语对照表</span>
+            <div class="header-controls">
+              <el-tag type="info" size="large">
+                <el-icon><Document /></el-icon>
+                共 {{ analysisResult?.terms?.length || 0 }} 个术语
+              </el-tag>
+              <el-button type="primary" @click="exportTable" v-if="analysisResult">
+                <el-icon><Download /></el-icon> 导出CSV
+              </el-button>
+            </div>
           </div>
         </template>
 
-        <div class="compare-container" :class="{ sideBySide: showSideBySide }">
-          <div class="compare-section">
-            <div class="compare-header">
-              <span class="compare-lang">{{ inputLang === 'zh' ? '中文' : 'English' }}</span>
-              <el-button text icon="CopyDocument" @click="copyText(sourceCompare)">
+        <!-- 对照表格 -->
+        <el-table :data="analysisResult?.terms || []" stripe class="compare-table" border>
+          <el-table-column label="序号" type="index" width="70" align="center" fixed></el-table-column>
+          <el-table-column label="术语类型" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag
+                :type="row.type === 'professional' ? 'danger' : 'info'"
+                size="large"
+                effect="dark"
+              >
+                <el-icon><DataLine /></el-icon>
+                {{ row.type === 'professional' ? '专业术语' : '普通词汇' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="中文" min-width="200">
+            <template #default="{ row }">
+              <div class="table-cell source">
+                <span class="term-text primary-text">{{ inputLang === 'zh' ? row.original : getTranslation(row, 'zh') }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="English" min-width="220">
+            <template #default="{ row }">
+              <div class="table-cell translation">
+                <span class="term-text english-text">{{ inputLang === 'en' ? row.original : getTranslation(row, 'en') }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="权重评分" width="140" align="center">
+            <template #default="{ row }">
+              <div class="weight-display">
+                <el-rate v-model="row.weight" disabled show-score score-template="{value}" size="small"></el-rate>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="专业注释" min-width="300" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div class="table-cell notes">
+                <el-icon class="note-icon"><Notebook /></el-icon>
+                <span class="notes-text">{{ row.notes }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="出现频次" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag type="warning" size="small">{{ row.frequency }} 次</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link icon="CopyDocument" @click="copyTerm(row)">
                 复制
               </el-button>
-            </div>
-            <div class="compare-content marked-text" v-html="sourceCompare"></div>
-          </div>
-
-          <div class="compare-divider" v-if="!showSideBySide">
-            <el-icon><Position /></el-icon>
-          </div>
-
-          <div class="compare-section">
-            <div class="compare-header">
-              <span class="compare-lang">{{ inputLang === 'zh' ? 'English' : '中文' }}</span>
-              <el-button text icon="CopyDocument" @click="copyText(targetCompare)">
-                复制
+              <el-button type="success" link icon="View" @click="viewTermDetail(row)">
+                详情
               </el-button>
-            </div>
-            <div class="compare-content marked-text" v-html="targetCompare"></div>
-          </div>
-        </div>
+            </template>
+          </el-table-column>
+        </el-table>
 
-        <!-- 术语图例 -->
-        <div class="legend-section">
-          <div class="legend-title">术语标记说明</div>
-          <div class="legend-items">
-            <div class="legend-item">
-              <span class="legend-mark professional"></span>
-              <span>专业术语</span>
+        <!-- 统计摘要 -->
+        <div class="compare-summary" v-if="analysisResult">
+          <div class="summary-card">
+            <div class="summary-icon">📊</div>
+            <div class="summary-content">
+              <div class="summary-label">术语总数</div>
+              <div class="summary-value">{{ analysisResult.totalTerms }}</div>
             </div>
-            <div class="legend-item">
-              <span class="legend-mark common"></span>
-              <span>普通词汇</span>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon">🔴</div>
+            <div class="summary-content">
+              <div class="summary-label">专业术语</div>
+              <div class="summary-value">{{ analysisResult.professionalTerms }}</div>
             </div>
-            <div class="legend-item">
-              <span class="legend-mark high"></span>
-              <span>高权重术语</span>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon">🔵</div>
+            <div class="summary-content">
+              <div class="summary-label">普通词汇</div>
+              <div class="summary-value">{{ analysisResult.commonTerms }}</div>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon">⭐</div>
+            <div class="summary-content">
+              <div class="summary-label">复杂度</div>
+              <div class="summary-value">{{ analysisResult.complexity }}</div>
             </div>
           </div>
         </div>
@@ -364,6 +424,163 @@
       </el-card>
     </div>
 
+    <!-- 图片分析模式 -->
+    <div v-if="analysisMode === 'image'" class="analysis-results">
+      <el-card class="image-analysis-card">
+        <template #header>
+          <span>图片术语分析</span>
+        </template>
+
+        <div class="image-analysis-container">
+          <!-- 图片上传区域 -->
+          <div class="upload-area">
+            <el-upload
+              class="image-uploader"
+              :show-file-list="false"
+              :before-upload="beforeImageUpload"
+              :on-success="handleImageSuccess"
+              :drag="true"
+              accept="image/*"
+            >
+              <div v-if="!imageUrl" class="upload-placeholder">
+                <el-icon class="upload-icon"><Picture /></el-icon>
+                <div class="upload-text">拖拽图片到此处或点击上传</div>
+                <div class="upload-hint">支持 JPG、PNG、GIF 格式，大小不超过 10MB</div>
+              </div>
+              <img v-else :src="imageUrl" class="uploaded-image" alt="uploaded" />
+            </el-upload>
+
+            <div v-if="imageUrl" class="image-actions">
+              <el-button type="primary" @click="analyzeImage" :loading="analyzing">
+                <el-icon><DataAnalysis /></el-icon> 开始分析
+              </el-button>
+              <el-button @click="clearImage">重新上传</el-button>
+            </div>
+          </div>
+
+          <!-- 分析结果 -->
+          <div class="analysis-result" v-if="imageAnalysisResult">
+            <div class="result-header">
+              <h3>术语分析结果</h3>
+              <el-button text icon="CopyDocument" @click="copyText(imageAnalysisResult)">
+                复制
+              </el-button>
+            </div>
+            <div class="result-content">
+              <div v-html="imageAnalysisResult" class="result-text"></div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 文档分析模式 -->
+    <div v-if="analysisMode === 'document'" class="analysis-results">
+      <el-card class="document-analysis-card">
+        <template #header>
+          <span>文档术语分析</span>
+        </template>
+
+        <div class="document-analysis-container">
+          <!-- 文档上传区域 -->
+          <div class="upload-area">
+            <el-upload
+              class="document-uploader"
+              :show-file-list="true"
+              :before-upload="beforeDocUpload"
+              :on-remove="handleDocRemove"
+              :file-list="docFileList"
+              :drag="true"
+              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+              :limit="1"
+            >
+              <div v-if="docFileList.length === 0" class="upload-placeholder">
+                <el-icon class="upload-icon"><Upload /></el-icon>
+                <div class="upload-text">拖拽文档到此处或点击上传</div>
+                <div class="upload-hint">支持 PDF、Word、TXT、Excel 格式，大小不超过 50MB</div>
+              </div>
+              <el-button v-else type="primary" icon="Upload">
+                重新上传
+              </el-button>
+            </el-upload>
+
+            <div v-if="docFileList.length > 0" class="doc-actions">
+              <el-button type="primary" @click="analyzeDocument" :loading="analyzing">
+                <el-icon><DataAnalysis /></el-icon> 开始分析
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 分析结果 -->
+          <div class="analysis-result" v-if="docAnalysisResult">
+            <div class="result-header">
+              <h3>文档术语分析结果</h3>
+              <div class="result-actions">
+                <el-button type="primary" icon="Download" @click="exportDocumentResult">
+                  导出结果
+                </el-button>
+                <el-button icon="View" @click="viewDocumentDetail">
+                  查看详情
+                </el-button>
+              </div>
+            </div>
+            <div class="result-content">
+              <el-alert
+                title="分析完成"
+                type="success"
+                :description="`文档 ${docFileList[0]?.name} 已成功分析，发现 ${docAnalysisResult.totalTerms} 个术语`"
+                :closable="false"
+              />
+
+              <!-- 术语对照表 -->
+              <div class="document-terms-table">
+                <h4>中英文术语对照表</h4>
+                <el-table :data="docAnalysisResult.terms" stripe class="compare-table" border>
+                  <el-table-column label="序号" type="index" width="70" align="center" fixed></el-table-column>
+                  <el-table-column label="术语类型" width="130" align="center">
+                    <template #default="{ row }">
+                      <el-tag
+                        :type="row.type === 'professional' ? 'danger' : 'info'"
+                        size="large"
+                        effect="dark"
+                      >
+                        {{ row.type === 'professional' ? '专业术语' : '普通词汇' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="中文" min-width="180">
+                    <template #default="{ row }">
+                      <span class="primary-text">{{ row.zhTranslation }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="English" min-width="200">
+                    <template #default="{ row }">
+                      <span class="english-text">{{ row.enTranslation }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="权重" width="100" align="center">
+                    <template #default="{ row }">
+                      {{ row.weight }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="注释" min-width="250" show-overflow-tooltip>
+                    <template #default="{ row }">
+                      <span class="notes-text">{{ row.notes }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="频次" width="100" align="center">
+                    <template #default="{ row }">
+                      <el-tag type="warning" size="small">{{ row.frequency }} 次</el-tag>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
     <!-- 高权重术语弹窗 -->
     <el-dialog
       v-model="termDetailVisible"
@@ -427,11 +644,11 @@ import { ElMessage } from 'element-plus'
 import {
   Delete, Document, DataAnalysis, Search, Reading,
   Notebook, ChatDotRound, DataLine, Top, Bottom,
-  Position, CopyDocument
+  Position, CopyDocument, Hide, Download, View, Picture, Upload
 } from '@element-plus/icons-vue'
 
 // 分析模式
-const analysisMode = ref('term')
+const analysisMode = ref('compare')
 
 // 输入语言
 const inputLang = ref('zh')
@@ -448,15 +665,34 @@ const searchTerm = ref('')
 // 对照模式
 const showSideBySide = ref(false)
 
+// 目标语言（默认英语，但对照模式固定为中英文对照）
+const targetLang = ref('en')
+
+// 获取指定语言的翻译
+const getTranslation = (term: any, lang: string) => {
+  const trans = term.translations?.find((t: any) => t.lang === lang)
+  return trans?.text || '暂无翻译'
+}
+
+// 是否显示示例区域
+const showExampleSection = ref(false)
+
 // 术语详情弹窗
 const termDetailVisible = ref(false)
 const selectedTerm = ref<any>(null)
 
+// 图片分析相关
+const imageUrl = ref('')
+const imageAnalysisResult = ref('')
+
+// 文档分析相关
+const docFileList = ref<any[]>([])
+const docAnalysisResult = ref<any>(null)
+
 // 语言映射
 const languageMap: { [key: string]: string } = {
   zh: '中文',
-  en: '英语',
-  ja: '日语'
+  en: '英语'
 }
 
 // 分析结果
@@ -480,8 +716,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 5,
       translations: [
-        { lang: 'en', text: 'CNC machine tool' },
-        { lang: 'ja', text: 'NC工作機械' }
+        { lang: 'en', text: 'CNC machine tool' }
       ],
       notes: '数控机床是数字控制机床的简称，是一种装有程序控制系统的自动化机床',
       examples: ['本产品采用高精度数控机床加工', '数控机床能提高生产效率'],
@@ -493,8 +728,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'en', text: 'spindle box' },
-        { lang: 'ja', text: '主軸箱' }
+        { lang: 'en', text: 'spindle box' }
       ],
       notes: '主轴箱是机床的重要部件，用于安装主轴和传动齿轮',
       examples: ['主轴箱采用高强度铸铁材料'],
@@ -506,8 +740,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'en', text: 'gearbox' },
-        { lang: 'ja', text: '歯車箱' }
+        { lang: 'en', text: 'gearbox' }
       ],
       notes: '齿轮箱是用于传递动力和改变转速的装置',
       examples: ['齿轮箱内配置多级减速齿轮'],
@@ -519,8 +752,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'en', text: 'hydraulic system' },
-        { lang: 'ja', text: '油圧システム' }
+        { lang: 'en', text: 'hydraulic system' }
       ],
       notes: '利用液体压力能进行能量传递和控制的系统',
       examples: ['液压系统采用伺服比例阀控制'],
@@ -532,8 +764,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4,
       translations: [
-        { lang: 'en', text: 'transmission device' },
-        { lang: 'ja', text: '伝動装置' }
+        { lang: 'en', text: 'transmission device' }
       ],
       notes: '用于传递动力和运动的机械装置',
       examples: ['传动装置采用链条传动'],
@@ -545,8 +776,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 3.5,
       translations: [
-        { lang: 'en', text: 'cast iron' },
-        { lang: 'ja', text: '鋳鉄' }
+        { lang: 'en', text: 'cast iron' }
       ],
       notes: '一种含碳量较高的铁碳合金，具有良好的铸造性能',
       examples: ['主轴箱采用高强度铸铁材料'],
@@ -558,8 +788,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4,
       translations: [
-        { lang: 'en', text: 'heat treatment' },
-        { lang: 'ja', text: '熱処理' }
+        { lang: 'en', text: 'heat treatment' }
       ],
       notes: '通过加热、保温和冷却工艺，改变材料性能的工艺方法',
       examples: ['经过精密加工和热处理工艺'],
@@ -571,8 +800,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4,
       translations: [
-        { lang: 'en', text: 'reduction gear' },
-        { lang: 'ja', text: '減速歯車' }
+        { lang: 'en', text: 'reduction gear' }
       ],
       notes: '用于降低转速、增加扭矩的齿轮',
       examples: ['齿轮箱内配置多级减速齿轮'],
@@ -584,8 +812,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 5,
       translations: [
-        { lang: 'en', text: 'servo proportional valve' },
-        { lang: 'ja', text: 'サーボ比例弁' }
+        { lang: 'en', text: 'servo proportional valve' }
       ],
       notes: '能够根据输入信号按比例控制流量或压力的液压控制阀',
       examples: ['液压系统采用伺服比例阀控制'],
@@ -597,8 +824,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 3.5,
       translations: [
-        { lang: 'en', text: 'chain drive' },
-        { lang: 'ja', text: 'チェーンドライブ' }
+        { lang: 'en', text: 'chain drive' }
       ],
       notes: '利用链条和链轮传递动力的传动方式',
       examples: ['传动装置采用链条传动'],
@@ -610,8 +836,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'en', text: 'Programmable Logic Controller' },
-        { lang: 'ja', text: 'プログラマブルロジックコントローラ' }
+        { lang: 'en', text: 'Programmable Logic Controller' }
       ],
       notes: '可编程逻辑控制器，一种用于工业自动化控制的电子装置',
       examples: ['控制系统采用西门子PLC'],
@@ -625,8 +850,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 5,
       translations: [
-        { lang: 'zh', text: '数控机床' },
-        { lang: 'ja', text: 'NC工作機械' }
+        { lang: 'zh', text: '数控机床' }
       ],
       notes: 'Computer Numerical Control machine tool, an automated machine tool with program control system',
       examples: ['This product is manufactured using high-precision CNC machine tools'],
@@ -638,8 +862,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'zh', text: '主轴箱' },
-        { lang: 'ja', text: '主軸箱' }
+        { lang: 'zh', text: '主轴箱' }
       ],
       notes: 'Important component of machine tool, used to install spindle and transmission gears',
       examples: ['The spindle box is made of high-strength cast iron'],
@@ -651,8 +874,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'zh', text: '齿轮箱' },
-        { lang: 'ja', text: '歯車箱' }
+        { lang: 'zh', text: '齿轮箱' }
       ],
       notes: 'Device used for power transmission and speed change',
       examples: ['The gearbox is equipped with multi-stage reduction gears'],
@@ -664,8 +886,7 @@ const termDatabase: { [key: string]: any[] } = {
       type: 'professional',
       weight: 4.5,
       translations: [
-        { lang: 'zh', text: '液压系统' },
-        { lang: 'ja', text: '油圧システム' }
+        { lang: 'zh', text: '液压系统' }
       ],
       notes: 'System using fluid pressure for energy transmission and control',
       examples: ['The hydraulic system uses servo proportional valve control'],
@@ -719,12 +940,11 @@ const sourceCompare = computed(() => {
 // 目标语言对照文本
 const targetCompare = computed(() => {
   if (!analysisResult.value) return ''
-  const targetLangCode = inputLang.value === 'zh' ? 'en' : 'zh'
   let translatedText = inputText.value
 
-  // 简单替换翻译
+  // 简单替换翻译（使用选择的目标语言）
   analysisResult.value.terms.forEach((term: any) => {
-    const trans = term.translations.find((t: any) => t.lang === targetLangCode)
+    const trans = term.translations.find((t: any) => t.lang === targetLang.value)
     if (trans) {
       translatedText = translatedText.replace(new RegExp(term.original, 'g'), trans.text)
     }
@@ -835,6 +1055,206 @@ const viewTermDetail = (term: any) => {
   selectedTerm.value = term
   termDetailVisible.value = true
 }
+
+// 复制单个术语
+const copyTerm = (term: any) => {
+  const zhText = inputLang.value === 'zh' ? term.original : getTranslation(term, 'zh')
+  const enText = inputLang.value === 'en' ? term.original : getTranslation(term, 'en')
+  let text = `中文：${zhText}\nEnglish：${enText}\n类型：${term.type === 'professional' ? '专业术语' : '普通词汇'}`
+  navigator.clipboard.writeText(text)
+  ElMessage.success('已复制到剪贴板')
+}
+
+// 导出表格
+const exportTable = () => {
+  if (!analysisResult.value) return
+
+  let csvContent = '\uFEFF' // BOM for UTF-8
+  csvContent += `序号,术语类型,中文,English,权重评分,专业注释,出现频次\n`
+
+  analysisResult.value.terms.forEach((term: any, index: number) => {
+    const typeText = term.type === 'professional' ? '专业术语' : '普通词汇'
+    const zhText = inputLang.value === 'zh' ? term.original : getTranslation(term, 'zh')
+    const enText = inputLang.value === 'en' ? term.original : getTranslation(term, 'en')
+    csvContent += `${index + 1},${typeText},"${zhText}","${enText}",${term.weight},"${term.notes}",${term.frequency}\n`
+  })
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `中英文术语对照表_${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('表格导出成功')
+}
+
+// 图片上传前验证
+const beforeImageUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    imageUrl.value = e.target?.result as string
+  }
+  reader.readAsDataURL(file)
+  return false // 阻止自动上传
+}
+
+// 图片上传成功
+const handleImageSuccess = () => {
+  ElMessage.success('图片上传成功')
+}
+
+// 图片分析
+const analyzeImage = async () => {
+  analyzing.value = true
+  await new Promise(resolve => setTimeout(resolve, 2000))
+
+  // 模拟图片分析结果
+  const terms = termDatabase[inputLang.value] || []
+  const resultText = terms.map((term: any) => {
+    const zhText = inputLang.value === 'zh' ? term.original : getTranslation(term, 'zh')
+    const enText = inputLang.value === 'en' ? term.original : getTranslation(term, 'en')
+    return `<div class="image-term-item">
+      <span class="term-original">${zhText}</span>
+      <span class="term-arrow">↔</span>
+      <span class="term-translation">${enText}</span>
+      <span class="term-type">[${term.type === 'professional' ? '专业术语' : '普通词汇'}]</span>
+    </div>`
+  }).join('')
+
+  imageAnalysisResult.value = `<div class="image-result-content">
+    <h4>图片术语分析结果</h4>
+    <p>从图片中识别出 ${terms.length} 个术语</p>
+    <div class="terms-grid">${resultText}</div>
+  </div>`
+
+  analyzing.value = false
+  ElMessage.success('图片分析完成')
+}
+
+// 清除图片
+const clearImage = () => {
+  imageUrl.value = ''
+  imageAnalysisResult.value = ''
+}
+
+// 文档上传前验证
+const beforeDocUpload = (file: File) => {
+  const validTypes = ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx']
+  const isValidType = validTypes.some(type => file.name.toLowerCase().endsWith(type))
+  const isLt50M = file.size / 1024 / 1024 < 50
+
+  if (!isValidType) {
+    ElMessage.error('只能上传 PDF、Word、TXT、Excel 格式的文件!')
+    return false
+  }
+  if (!isLt50M) {
+    ElMessage.error('文件大小不能超过 50MB!')
+    return false
+  }
+
+  return true
+}
+
+// 文档移除
+const handleDocRemove = () => {
+  docFileList.value = []
+  docAnalysisResult.value = null
+}
+
+// 文档分析
+const analyzeDocument = async () => {
+  analyzing.value = true
+  await new Promise(resolve => setTimeout(resolve, 3000))
+
+  // 模拟文档分析结果
+  const terms = termDatabase[inputLang.value] || []
+  docAnalysisResult.value = {
+    totalTerms: terms.length,
+    professionalTerms: terms.filter((t: any) => t.type === 'professional').length,
+    commonTerms: terms.filter((t: any) => t.type === 'common').length,
+    terms: terms.map((term: any) => {
+      const zhText = inputLang.value === 'zh' ? term.original : getTranslation(term, 'zh')
+      const enText = inputLang.value === 'en' ? term.original : getTranslation(term, 'en')
+      return {
+        original: term.original,
+        type: term.type,
+        weight: term.weight,
+        zhTranslation: zhText,
+        enTranslation: enText,
+        notes: term.notes,
+        frequency: term.frequency
+      }
+    })
+  }
+
+  analyzing.value = false
+  ElMessage.success('文档分析完成')
+}
+
+// 导出文档结果
+const exportDocumentResult = () => {
+  if (!docAnalysisResult.value) return
+
+  let csvContent = '\uFEFF'
+  csvContent += `序号,术语类型,中文,English,权重,注释,频次\n`
+
+  docAnalysisResult.value.terms.forEach((term: any, index: number) => {
+    const typeText = term.type === 'professional' ? '专业术语' : '普通词汇'
+    csvContent += `${index + 1},${typeText},"${term.zhTranslation}","${term.enTranslation}",${term.weight},"${term.notes}",${term.frequency}\n`
+  })
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `文档中英文术语对照表_${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('结果导出成功')
+}
+
+// 查看文档详情
+const viewDocumentDetail = () => {
+  if (!docAnalysisResult.value) return
+
+  const detail = `
+文档分析报告
+===========================================
+文件名: ${docFileList.value[0]?.name}
+术语总数: ${docAnalysisResult.value.totalTerms}
+专业术语: ${docAnalysisResult.value.professionalTerms}
+普通词汇: ${docAnalysisResult.value.commonTerms}
+
+术语详情:
+-------------------------------------------
+${docAnalysisResult.value.terms.map((term: any, index: number) =>
+  `${index + 1}. ${term.original} (${term.type})\n   权重: ${term.weight}\n   翻译: ${term.translation}\n   注释: ${term.notes}\n   频次: ${term.frequency}`
+).join('\n\n')}
+  `.trim()
+
+  const blob = new Blob([detail], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `文档分析详情_${Date.now()}.txt`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('详情已导出')
+}
+
 </script>
 
 <style scoped>
@@ -847,7 +1267,11 @@ const viewTermDetail = (term: any) => {
 /* 头部区域 */
 .page-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
 }
 
 .header-content {
@@ -856,22 +1280,48 @@ const viewTermDetail = (term: any) => {
 }
 
 .page-title {
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 600;
-  color: #303133;
-  margin: 0 0 8px 0;
+  color: white;
+  margin: 0 0 12px 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .page-subtitle {
-  font-size: 14px;
-  color: #909399;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.9);
   margin: 0;
+  font-weight: 500;
 }
 
 /* 模式切换 */
 .mode-tabs {
-  max-width: 400px;
-  margin: 0 auto 24px;
+  max-width: 600px;
+  margin: 0 auto 32px;
+  padding: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+:deep(.mode-tabs .el-radio-group) {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+:deep(.mode-tabs .el-radio-button__inner) {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 10px 20px;
+  transition: all 0.3s;
+}
+
+:deep(.mode-tabs .el-radio-button.is-active .el-radio-button__inner) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 /* 输入区域 */
@@ -1111,54 +1561,196 @@ const viewTermDetail = (term: any) => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
-.compare-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.compare-container.sideBySide {
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.compare-section {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.compare-header {
+.header-controls {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5e5e5;
+  gap: 16px;
 }
 
-.compare-lang {
-  font-size: 16px;
+/* 对照表格 */
+.compare-table {
+  margin-top: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(.compare-table .el-table__header-wrapper) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+:deep(.compare-table .el-table th) {
+  background: transparent;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+:deep(.compare-table .el-table__row) {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+:deep(.compare-table .el-table__row:hover) {
+  background-color: #f0f9ff;
+  transform: scale(1.01);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+}
+
+:deep(.compare-table .el-table__row:nth-child(even)) {
+  background-color: #fafafa;
+}
+
+:deep(.compare-table .el-table__row:nth-child(even):hover) {
+  background-color: #f0f9ff;
+}
+
+.table-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-cell.source {
+  justify-content: flex-start;
+}
+
+.table-cell.translation {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.table-cell.notes {
+  align-items: flex-start;
+}
+
+.note-icon {
+  color: #909399;
+  margin-right: 6px;
+}
+
+.table-type-tag {
+  margin-bottom: 4px;
+}
+
+.term-text {
   font-weight: 500;
   color: #303133;
+  font-size: 14px;
 }
 
-.compare-content {
+.primary-text {
+  color: #303133;
+  font-weight: 600;
   font-size: 15px;
-  line-height: 2;
-  color: #606266;
-  white-space: pre-wrap;
 }
 
-.compare-divider {
+.english-text {
+  color: #409eff;
+  font-weight: 500;
+  font-size: 14px;
+  font-family: 'Arial', sans-serif;
+}
+
+.weight-display {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #409eff;
-  font-size: 24px;
 }
 
-/* 标记样式 */
+.notes-text {
+  color: #606266;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+/* 统计摘要 */
+.compare-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-top: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+  border-radius: 12px;
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s;
+}
+
+.summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.summary-icon {
+  font-size: 32px;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.example-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.example-toggle {
+  margin-left: 12px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+.example-toggle:hover {
+  background-color: #e8eef5;
+}
+
+.example-section {
+  max-width: 1200px;
+  margin: 20px auto 0;
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.example-section.hidden {
+  display: none;
+}
+
+.example-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+
+/* 标记样式（保留用于其他模式） */
 .marked-text :deep(.term-mark) {
   padding: 2px 6px;
   border-radius: 4px;
@@ -1195,6 +1787,11 @@ const viewTermDetail = (term: any) => {
   padding: 16px;
   background: #f5f7fa;
   border-radius: 8px;
+  display: none; /* 默认隐藏图例 */
+}
+
+.legend-section.show {
+  display: block;
 }
 
 .legend-title {
@@ -1455,7 +2052,23 @@ const viewTermDetail = (term: any) => {
     padding: 16px;
   }
 
+  .page-title {
+    font-size: 24px;
+  }
+
+  .page-subtitle {
+    font-size: 14px;
+  }
+
+  .mode-tabs {
+    max-width: 100%;
+  }
+
   .overview-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .compare-summary {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1466,5 +2079,232 @@ const viewTermDetail = (term: any) => {
   .weight-charts {
     grid-template-columns: 1fr;
   }
+
+  :deep(.compare-table) {
+    font-size: 12px;
+  }
 }
+
+@media (max-width: 480px) {
+  .compare-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    padding: 16px;
+  }
+}
+
+/* 图片分析 */
+.image-analysis-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.image-analysis-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.image-uploader {
+  width: 100%;
+}
+
+.upload-placeholder {
+  padding: 40px;
+  text-align: center;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  transition: border-color 0.3s;
+}
+
+.upload-placeholder:hover {
+  border-color: #409eff;
+}
+
+.upload-icon {
+  font-size: 48px;
+  color: #909399;
+  margin-bottom: 16px;
+}
+
+.upload-text {
+  font-size: 16px;
+  color: #303133;
+  margin-bottom: 8px;
+}
+
+.upload-hint {
+  font-size: 13px;
+  color: #909399;
+}
+
+.uploaded-image {
+  width: 100%;
+  height: 300px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.image-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 文档分析 */
+.document-analysis-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.document-analysis-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.document-uploader {
+  width: 100%;
+}
+
+.doc-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 分析结果 */
+.analysis-result {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.result-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.result-content {
+  min-height: 200px;
+}
+
+.result-text {
+  line-height: 1.8;
+  color: #606266;
+}
+
+.placeholder-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #909399;
+}
+
+.placeholder-text p {
+  margin: 12px 0 0 0;
+  font-size: 14px;
+}
+
+/* 图片分析结果 */
+.image-result-content {
+  line-height: 2;
+}
+
+.image-result-content h4 {
+  margin: 0 0 12px 0;
+  color: #303133;
+  font-size: 15px;
+}
+
+.image-result-content p {
+  margin: 0 0 16px 0;
+  color: #606266;
+}
+
+.terms-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.image-term-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border-left: 3px solid #409eff;
+}
+
+.term-original {
+  font-weight: 500;
+  color: #303133;
+}
+
+.term-arrow {
+  color: #909399;
+}
+
+.term-translation {
+  flex: 1;
+  color: #606266;
+}
+
+.term-type {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8eef5;
+  color: #409eff;
+}
+
+/* 文档分析结果 */
+.document-terms-table {
+  margin-top: 20px;
+}
+
+.document-terms-table h4 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #303133;
+}
+
+/* 响应式 - 图片和文档分析 */
+@media (max-width: 768px) {
+  .image-analysis-container {
+    grid-template-columns: 1fr;
+  }
+
+  .terms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .uploaded-image {
+    height: 200px;
+  }
+}
+
 </style>
