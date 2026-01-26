@@ -213,61 +213,558 @@
       </el-card>
     </div>
 
-    <!-- 对照翻译模式 -->
-    <div v-if="analysisMode === 'compare'" class="analysis-results">
-      <el-card class="compare-card">
+    <!-- 术语分析模式 -->
+    <div v-if="analysisMode === 'term'" class="analysis-results">
+      <!-- 分析概览 -->
+      <el-card class="overview-card" v-if="analysisResult">
+        <template #header>
+          <span>分析概览</span>
+        </template>
+        <div class="overview-stats">
+          <div class="stat-item">
+            <div class="stat-value">{{ analysisResult.totalTerms }}</div>
+            <div class="stat-label">术语总数</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ analysisResult.professionalTerms }}</div>
+            <div class="stat-label">专业术语</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ analysisResult.commonTerms }}</div>
+            <div class="stat-label">普通词汇</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ analysisResult.complexity }}</div>
+            <div class="stat-label">复杂度</div>
+          </div>
+        </div>
+      </el-card>
+
+      <!-- 术语列表 -->
+      <el-card class="terms-card" v-if="analysisResult">
         <template #header>
           <div class="card-header">
-            <span>中英文术语对照表</span>
+            <span>术语详细列表</span>
+            <el-input
+              v-model="searchTerm"
+              placeholder="搜索术语..."
+              prefix-icon="Search"
+              style="width: 200px"
+              clearable
+            />
+          </div>
+        </template>
+
+        <div class="terms-list">
+          <div
+            v-for="term in filteredTerms"
+            :key="term.id"
+            class="term-item"
+            :class="term.type"
+          >
+            <div class="term-header">
+              <div class="term-main">
+                <el-tag
+                  :type="term.type === 'professional' ? 'danger' : 'info'"
+                  size="small"
+                  class="term-type-tag"
+                >
+                  {{ term.type === 'professional' ? '专业术语' : '普通词汇' }}
+                </el-tag>
+                <h3 class="term-text">{{ term.original }}</h3>
+              </div>
+              <div class="term-weight">
+                <el-rate
+                  v-model="term.weight"
+                  disabled
+                  show-score
+                  text-color="#ff9900"
+                  score-template="{value}"
+                ></el-rate>
+              </div>
+            </div>
+
+            <div class="term-content">
+              <div class="term-section">
+                <div class="section-label">
+                  <el-icon><Reading /></el-icon> 翻译对照
+                </div>
+                <div class="term-translations">
+                  <div
+                    v-for="trans in term.translations"
+                    :key="trans.lang"
+                    class="translation-item"
+                  >
+                    <span class="trans-lang">{{ languageMap[trans.lang] }}</span>
+                    <span class="trans-text">{{ trans.text }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="term-section">
+                <div class="section-label">
+                  <el-icon><Notebook /></el-icon> 专业注释
+                </div>
+                <div class="term-notes">
+                  <el-alert
+                    :title="term.notes"
+                    type="info"
+                    :closable="false"
+                    class="note-alert"
+                  />
+                </div>
+              </div>
+
+              <div class="term-section" v-if="term.examples && term.examples.length > 0">
+                <div class="section-label">
+                  <el-icon><ChatDotRound /></el-icon> 使用示例
+                </div>
+                <div class="term-examples">
+                  <div
+                    v-for="(example, index) in term.examples"
+                    :key="index"
+                    class="example-item"
+                  >
+                    <span class="example-mark">•</span>
+                    <span class="example-text">{{ example }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="term-section">
+                <div class="section-label">
+                  <el-icon><DataLine /></el-icon> 统计信息
+                </div>
+                <div class="term-stats">
+                  <div class="stat-row">
+                    <span class="stat-label-small">出现频次:</span>
+                    <span class="stat-value-small">{{ term.frequency }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label-small">相关词汇:</span>
+                    <span class="stat-value-small">{{ term.relatedTerms?.join('、') || '无' }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label-small">领域分类:</span>
+                    <el-tag
+                      v-for="category in term.categories"
+                      :key="category"
+                      size="small"
+                      type="warning"
+                      class="category-tag"
+                    >
+                      {{ category }}
+                    </el-tag>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 权重评估模式 -->
+    <div v-if="analysisMode === 'weight'" class="analysis-results">
+      <el-card class="weight-card" v-if="analysisResult">
+        <template #header>
+          <span>权重评估分析</span>
+        </template>
+
+        <!-- 权重分布图 -->
+        <div class="weight-charts">
+          <div class="chart-section">
+            <h3 class="chart-title">权重分布</h3>
+            <div class="weight-bars">
+              <div
+                v-for="term in highWeightTerms"
+                :key="term.id"
+                class="weight-bar-item"
+              >
+                <div class="bar-label">{{ term.original }}</div>
+                <div class="bar-track">
+                  <div
+                    class="bar-fill"
+                    :style="{ width: `${term.weight * 20}%` }"
+                  ></div>
+                </div>
+                <div class="bar-value">{{ term.weight }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-section">
+            <h3 class="chart-title">术语类型分布</h3>
+            <div class="type-pie">
+              <div class="pie-chart">
+                <div
+                  class="pie-segment professional"
+                  :style="{
+                    background: `conic-gradient(#f56c6c 0% ${professionalPercent}%, #909399 ${professionalPercent}% 100%)`
+                  }"
+                ></div>
+              </div>
+              <div class="pie-legend">
+                <div class="pie-legend-item">
+                  <span class="legend-dot professional"></span>
+                  <span>专业术语 ({{ professionalPercent }}%)</span>
+                </div>
+                <div class="pie-legend-item">
+                  <span class="legend-dot common"></span>
+                  <span>普通词汇 ({{ 100 - professionalPercent }}%)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 权重详细列表 -->
+        <div class="weight-table">
+          <h3 class="table-title">详细权重列表</h3>
+          <el-table :data="analysisResult.terms" stripe>
+            <el-table-column prop="original" label="术语" width="200"></el-table-column>
+            <el-table-column label="类型" width="120">
+              <template #default="{ row }">
+                <el-tag
+                  :type="row.type === 'professional' ? 'danger' : 'info'"
+                  size="small"
+                >
+                  {{ row.type === 'professional' ? '专业术语' : '普通词汇' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="weight" label="权重" width="120" align="center">
+              <template #default="{ row }">
+                <el-rate v-model="row.weight" disabled show-score score-template="{value}"></el-rate>
+              </template>
+            </el-table-column>
+            <el-table-column prop="frequency" label="频次" width="100" align="center"></el-table-column>
+            <el-table-column label="翻译" min-width="200">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="trans in row.translations"
+                  :key="trans.lang"
+                  size="small"
+                  type="success"
+                  class="trans-tag"
+                >
+                  {{ trans.text }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="注释" min-width="250" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.notes }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 图片分析模式 -->
+    <div v-if="analysisMode === 'image'" class="analysis-results">
+      <el-card class="image-analysis-card">
+        <template #header>
+          <span>图片术语分析</span>
+        </template>
+
+        <div class="image-analysis-container">
+          <!-- 图片上传区域 -->
+          <div class="upload-area">
+            <el-upload
+              class="image-uploader"
+              :show-file-list="false"
+              :before-upload="beforeImageUpload"
+              :on-success="handleImageSuccess"
+              :drag="true"
+              accept="image/*"
+            >
+              <div v-if="!imageUrl" class="upload-placeholder">
+                <el-icon class="upload-icon"><Picture /></el-icon>
+                <div class="upload-text">拖拽图片到此处或点击上传</div>
+                <div class="upload-hint">支持 JPG、PNG、GIF 格式，大小不超过 10MB</div>
+              </div>
+              <img v-else :src="imageUrl" class="uploaded-image" alt="uploaded" />
+            </el-upload>
+
+            <div v-if="imageUrl" class="image-actions">
+              <el-button type="primary" @click="analyzeImage" :loading="analyzing">
+                <el-icon><DataAnalysis /></el-icon> 开始分析
+              </el-button>
+              <el-button @click="clearImage">重新上传</el-button>
+            </div>
+          </div>
+
+          <!-- 分析结果 -->
+          <div class="analysis-result" v-if="imageAnalysisResult">
+            <div class="result-header">
+              <h3>术语分析结果</h3>
+              <el-button text icon="CopyDocument" @click="copyText(imageAnalysisResult)">
+                复制
+              </el-button>
+            </div>
+            <div class="result-content">
+              <div v-html="imageAnalysisResult" class="result-text"></div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 文档分析模式 -->
+    <div v-if="analysisMode === 'document'" class="analysis-results">
+      <el-card class="document-analysis-card">
+        <template #header>
+          <span>文档术语分析</span>
+        </template>
+
+        <div class="document-analysis-container">
+          <!-- 文档上传区域 -->
+          <div class="upload-area">
+            <el-upload
+              class="document-uploader"
+              :show-file-list="true"
+              :before-upload="beforeDocUpload"
+              :on-remove="handleDocRemove"
+              :file-list="docFileList"
+              :drag="true"
+              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+              :limit="1"
+            >
+              <div v-if="docFileList.length === 0" class="upload-placeholder">
+                <el-icon class="upload-icon"><Upload /></el-icon>
+                <div class="upload-text">拖拽文档到此处或点击上传</div>
+                <div class="upload-hint">支持 PDF、Word、TXT、Excel 格式，大小不超过 50MB</div>
+              </div>
+              <el-button v-else type="primary" icon="Upload">
+                重新上传
+              </el-button>
+            </el-upload>
+
+            <div v-if="docFileList.length > 0" class="doc-actions">
+              <el-button type="primary" @click="analyzeDocument" :loading="analyzing">
+                <el-icon><DataAnalysis /></el-icon> 开始分析
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 分析结果 -->
+          <div class="analysis-result" v-if="docAnalysisResult">
+            <div class="result-header">
+              <h3>文档术语分析结果</h3>
+              <div class="result-actions">
+                <el-button type="primary" icon="Download" @click="exportDocumentResult">
+                  导出结果
+                </el-button>
+                <el-button icon="View" @click="viewDocumentDetail">
+                  查看详情
+                </el-button>
+              </div>
+            </div>
+            <div class="result-content">
+              <el-alert
+                title="分析完成"
+                type="success"
+                :description="`文档 ${docFileList[0]?.name} 已成功分析，发现 ${docAnalysisResult.totalTerms} 个术语`"
+                :closable="false"
+              />
+
+              <!-- 术语对照表 -->
+              <div class="document-terms-table">
+                <h4>中英文术语对照表</h4>
+                <el-table :data="docAnalysisResult.terms" stripe class="compare-table" border>
+                  <el-table-column label="序号" type="index" width="70" align="center" fixed></el-table-column>
+                  <el-table-column label="术语类型" width="130" align="center">
+                    <template #default="{ row }">
+                      <el-tag
+                        :type="row.type === 'professional' ? 'danger' : 'info'"
+                        size="large"
+                        effect="dark"
+                      >
+                        {{ row.type === 'professional' ? '专业术语' : '普通词汇' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="中文" min-width="180">
+                    <template #default="{ row }">
+                      <span class="primary-text">{{ row.zhTranslation }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="English" min-width="200">
+                    <template #default="{ row }">
+                      <span class="english-text">{{ row.enTranslation }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="权重" width="100" align="center">
+                    <template #default="{ row }">
+                      {{ row.weight }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="注释" min-width="250" show-overflow-tooltip>
+                    <template #default="{ row }">
+                      <span class="notes-text">{{ row.notes }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="频次" width="100" align="center">
+                    <template #default="{ row }">
+                      <el-tag type="warning" size="small">{{ row.frequency }} 次</el-tag>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 常驻对照翻译表 - 始终显示在下方 -->
+    <div class="permanent-compare-section">
+      <el-card class="compare-card permanent-card">
+        <template #header>
+          <div class="card-header">
+            <span>
+              <el-icon class="header-icon"><Document /></el-icon>
+              中英文术语对照表
+              <el-tag v-if="!analysisResult" type="success" size="small" class="random-badge">随机展示</el-tag>
+            </span>
             <div class="header-controls">
-              <el-tag type="info" size="large">
-                <el-icon><Document /></el-icon>
-                共 {{ analysisResult?.terms?.length || 0 }} 个术语
+              <el-input
+                v-model="searchTerm"
+                placeholder="搜索术语..."
+                prefix-icon="Search"
+                style="width: 180px"
+                clearable
+                size="small"
+              />
+              <el-select v-model="filterType" placeholder="筛选类型" style="width: 100px" clearable size="small">
+                <el-option label="专业术语" value="professional"></el-option>
+                <el-option label="普通词汇" value="common"></el-option>
+              </el-select>
+              <el-tag type="primary" size="default">
+                共 {{ filteredTableTerms.length }} 个术语
               </el-tag>
-              <el-button type="primary" @click="exportTable" v-if="analysisResult">
-                <el-icon><Download /></el-icon> 导出CSV
+              <el-button
+                @click="refreshRandomTerms"
+                v-if="!analysisResult"
+                :icon="Refresh"
+                size="small"
+                circle
+                title="刷新随机术语"
+              ></el-button>
+              <el-button
+                type="primary"
+                @click="exportTable"
+                v-if="analysisResult"
+                :icon="Download"
+                size="small"
+              >
+                导出CSV
               </el-button>
             </div>
           </div>
         </template>
 
+        <!-- 闲置提示 -->
+        <el-alert
+          v-if="!analysisResult"
+          title="当前展示随机专业术语示例"
+          type="info"
+          :closable="false"
+          class="idle-alert"
+        >
+          <template #default>
+            <p>💡 输入文本并点击"开始分析"后，将显示基于您文本的术语对照表</p>
+            <p>🔄 点击右上角刷新按钮可以查看更多示例术语</p>
+            <p>📚 随机展示机械、自动化、液压等领域的常见专业术语</p>
+          </template>
+        </el-alert>
+
+        <!-- 快捷筛选 -->
+        <div class="quick-filters" v-if="displayTableTerms.length > 0">
+          <el-button
+            :type="filterType === '' ? 'primary' : 'default'"
+            size="small"
+            @click="filterType = ''"
+          >
+            全部 ({{ displayTableTerms.length }})
+          </el-button>
+          <el-button
+            :type="filterType === 'professional' ? 'danger' : 'default'"
+            size="small"
+            @click="filterType = 'professional'"
+          >
+            专业术语 ({{ professionalCount }})
+          </el-button>
+          <el-button
+            :type="filterType === 'common' ? 'info' : 'default'"
+            size="small"
+            @click="filterType = 'common'"
+          >
+            普通词汇 ({{ commonCount }})
+          </el-button>
+          <el-button
+            :type="showHighWeightOnly ? 'warning' : 'default'"
+            size="small"
+            @click="showHighWeightOnly = !showHighWeightOnly"
+          >
+            高权重 (≥4)
+          </el-button>
+        </div>
+
         <!-- 对照表格 -->
-        <el-table :data="analysisResult?.terms || []" stripe class="compare-table" border>
-          <el-table-column label="序号" type="index" width="70" align="center" fixed></el-table-column>
-          <el-table-column label="术语类型" width="130" align="center">
+        <el-table
+          :data="filteredTableTerms"
+          stripe
+          class="compare-table"
+          border
+          height="600px"
+          :row-class-name="getRowClassName"
+        >
+          <el-table-column label="序号" type="index" width="60" align="center" fixed></el-table-column>
+          <el-table-column label="类型" width="90" align="center">
             <template #default="{ row }">
               <el-tag
                 :type="row.type === 'professional' ? 'danger' : 'info'"
-                size="large"
+                size="small"
                 effect="dark"
               >
-                <el-icon><DataLine /></el-icon>
-                {{ row.type === 'professional' ? '专业术语' : '普通词汇' }}
+                {{ row.type === 'professional' ? '专业' : '普通' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="中文" min-width="200">
+          <el-table-column label="中文" min-width="150">
             <template #default="{ row }">
               <div class="table-cell source">
-                <span class="term-text primary-text">{{ inputLang === 'zh' ? row.original : getTranslation(row, 'zh') }}</span>
+                <el-icon v-if="row.weight >= 4.5" class="star-icon"><StarFilled /></el-icon>
+                <span class="term-text primary-text" :class="{ 'professional': row.type === 'professional' }">
+                  {{ inputLang === 'zh' ? row.original : getTranslation(row, 'zh') }}
+                </span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="English" min-width="220">
+          <el-table-column label="English" min-width="180">
             <template #default="{ row }">
               <div class="table-cell translation">
-                <span class="term-text english-text">{{ inputLang === 'en' ? row.original : getTranslation(row, 'en') }}</span>
+                <span class="term-text english-text" :class="{ 'professional': row.type === 'professional' }">
+                  {{ inputLang === 'en' ? row.original : getTranslation(row, 'en') }}
+                </span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="权重评分" width="140" align="center">
+          <el-table-column label="权重" width="90" align="center">
             <template #default="{ row }">
-              <div class="weight-display">
-                <el-rate v-model="row.weight" disabled show-score score-template="{value}" size="small"></el-rate>
-              </div>
+              <el-rate
+                v-model="row.weight"
+                disabled
+                show-score
+                score-template="{value}"
+                size="small"
+              ></el-rate>
             </template>
           </el-table-column>
-          <el-table-column label="专业注释" min-width="300" show-overflow-tooltip>
+          <el-table-column label="专业注释" min-width="250" show-overflow-tooltip>
             <template #default="{ row }">
               <div class="table-cell notes">
                 <el-icon class="note-icon"><Notebook /></el-icon>
@@ -275,19 +772,33 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="出现频次" width="110" align="center">
+          <el-table-column label="频次" width="70" align="center">
             <template #default="{ row }">
-              <el-tag type="warning" size="small">{{ row.frequency }} 次</el-tag>
+              <el-tag :type="row.frequency >= 3 ? 'danger' : 'warning'" size="small">
+                {{ row.frequency }}
+              </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" align="center" fixed="right">
+          <el-table-column label="操作" width="120" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button type="primary" link icon="CopyDocument" @click="copyTerm(row)">
-                复制
-              </el-button>
-              <el-button type="success" link icon="View" @click="viewTermDetail(row)">
-                详情
-              </el-button>
+              <el-tooltip content="复制" placement="top">
+                <el-button
+                  type="primary"
+                  link
+                  :icon="CopyDocument"
+                  @click="copyTerm(row)"
+                  size="small"
+                ></el-button>
+              </el-tooltip>
+              <el-tooltip content="详情" placement="top">
+                <el-button
+                  type="success"
+                  link
+                  :icon="View"
+                  @click="viewTermDetail(row)"
+                  size="small"
+                ></el-button>
+              </el-tooltip>
             </template>
           </el-table-column>
         </el-table>
@@ -644,7 +1155,7 @@ import { ElMessage } from 'element-plus'
 import {
   Delete, Document, DataAnalysis, Search, Reading,
   Notebook, ChatDotRound, DataLine, Top, Bottom,
-  Position, CopyDocument, Hide, Download, View, Picture, Upload
+  Position, CopyDocument, Hide, Download, View, Picture, Upload, StarFilled, Refresh
 } from '@element-plus/icons-vue'
 
 // 分析模式
@@ -661,6 +1172,13 @@ const analyzing = ref(false)
 
 // 搜索术语
 const searchTerm = ref('')
+
+// 筛选类型
+const filterType = ref('')
+const showHighWeightOnly = ref(false)
+
+// 随机术语
+const randomTerms = ref<any[]>([])
 
 // 对照模式
 const showSideBySide = ref(false)
@@ -915,6 +1433,61 @@ const filteredTerms = computed(() => {
   return terms.sort((a: any, b: any) => b.weight - a.weight)
 })
 
+// 显示的表格术语（分析结果或随机术语）
+const displayTableTerms = computed(() => {
+  if (analysisResult.value) {
+    return analysisResult.value.terms
+  }
+  return randomTerms.value
+})
+
+// 过滤后的表格术语
+const filteredTableTerms = computed(() => {
+  let terms = displayTableTerms.value
+
+  // 按类型筛选
+  if (filterType.value) {
+    terms = terms.filter(t => t.type === filterType.value)
+  }
+
+  // 按权重筛选
+  if (showHighWeightOnly.value) {
+    terms = terms.filter(t => t.weight >= 4)
+  }
+
+  // 搜索关键词
+  if (searchTerm.value) {
+    const keyword = searchTerm.value.toLowerCase()
+    terms = terms.filter((t: any) => {
+      const original = t.original.toLowerCase()
+      const zh = getTranslation(t, 'zh').toLowerCase()
+      const en = getTranslation(t, 'en').toLowerCase()
+      const notes = t.notes.toLowerCase()
+      return original.includes(keyword) || zh.includes(keyword) || en.includes(keyword) || notes.includes(keyword)
+    })
+  }
+
+  // 排序：专业术语优先，然后按权重和频次
+  return terms.sort((a: any, b: any) => {
+    if (a.type !== b.type) {
+      return a.type === 'professional' ? -1 : 1
+    }
+    if (a.weight !== b.weight) {
+      return b.weight - a.weight
+    }
+    return b.frequency - a.frequency
+  })
+})
+
+// 统计计数
+const professionalCount = computed(() => {
+  return displayTableTerms.value.filter(t => t.type === 'professional').length
+})
+
+const commonCount = computed(() => {
+  return displayTableTerms.value.filter(t => t.type === 'common').length
+})
+
 // 高权重术语
 const highWeightTerms = computed(() => {
   if (!analysisResult.value) return []
@@ -930,6 +1503,33 @@ const professionalPercent = computed(() => {
   const professional = analysisResult.value.terms.filter((t: any) => t.type === 'professional').length
   return Math.round((professional / total) * 100)
 })
+
+// 初始化随机术语
+const initRandomTerms = () => {
+  const terms = termDatabase[inputLang.value] || []
+  // 随机选择8-12个术语
+  const count = Math.floor(Math.random() * 5) + 8
+  const shuffled = [...terms].sort(() => 0.5 - Math.random())
+  randomTerms.value = shuffled.slice(0, count).map((t, i) => ({ ...t, id: i + 1000 }))
+}
+
+// 刷新随机术语
+const refreshRandomTerms = () => {
+  initRandomTerms()
+  ElMessage.success('已刷新随机术语示例')
+}
+
+// 获取行样式
+const getRowClassName = ({ row }: any) => {
+  let className = ''
+  if (row.type === 'professional') {
+    className += 'professional-row '
+  }
+  if (row.weight >= 4.5) {
+    className += 'high-weight-row '
+  }
+  return className.trim()
+}
 
 // 源语言对照文本
 const sourceCompare = computed(() => {
@@ -1255,6 +1855,15 @@ ${docAnalysisResult.value.terms.map((term: any, index: number) =>
   ElMessage.success('详情已导出')
 }
 
+// 监听语言变化
+watch(() => inputLang.value, () => {
+  initRandomTerms()
+})
+
+// 组件初始化
+initRandomTerms()
+
+import { watch } from 'vue'
 </script>
 
 <style scoped>
@@ -2241,6 +2850,82 @@ ${docAnalysisResult.value.terms.map((term: any, index: number) =>
   margin: 0 0 16px 0;
   color: #606266;
 }
+
+/* 常驻对照表 */
+.permanent-compare-section {
+  max-width: 1200px;
+  margin: 0 auto 32px;
+}
+
+.permanent-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.header-icon {
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.random-badge {
+  margin-left: 12px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+}
+
+.idle-alert {
+  margin-bottom: 16px;
+}
+
+.idle-alert p {
+  margin: 6px 0 0 0;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.quick-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.star-icon {
+  color: #e6a23c;
+  font-size: 16px;
+}
+
+/* 专业术语行样式 */
+:deep(.professional-row) {
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+}
+
+:deep(.professional-row .el-table__cell) {
+  background: transparent;
+}
+
+/* 高权重行样式 */
+:deep(.high-weight-row) td {
+  border-left: 3px solid #e6a23c !important;
+}
+
+/* 术语专业样式 */
+.term-text.professional {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  font-size: 14px;
+}
+
 
 .terms-grid {
   display: grid;
