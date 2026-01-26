@@ -10,7 +10,7 @@
       <div class="chat-list">
         <div
           v-for="chat in chatList"
-          :key="chat.id"
+          :key="chat.id" 
           class="chat-item"
           :class="{ active: currentChatId === chat.id }"
           @click="switchChat(chat.id)"
@@ -664,7 +664,7 @@ const formatTime = (date: Date): string => {
 }
 
 :deep(.message-input .el-textarea__inner:focus) {
-  border-color: #667eea;
+  border-color: #667eea; 
 }
 
 .input-footer {
