@@ -10,6 +10,7 @@ from application import dispatch
 from dvadmin.utils.models import CoreModel, table_prefix, get_custom_app_models
 
 
+# xulei8
 class Role(CoreModel):
     name = models.CharField(max_length=64, verbose_name="角色名称", help_text="角色名称")
     key = models.CharField(max_length=64, unique=True, verbose_name="权限字符", help_text="权限字符")
@@ -702,3 +703,26 @@ class DownloadCenter(CoreModel):
         verbose_name = "下载中心"
         verbose_name_plural = verbose_name
         ordering = ("-create_datetime",)
+
+class Transdicts(CoreModel):
+    CATEGORY_CHOICES = (
+        ('通用', '通用'),
+        ('飞行', '飞行'),
+        ('行业', '行业'),
+        ('机械', '机械'),
+        ('维保', '维保'),
+        ('文档', '文档'),
+        ('其他', '其他'),
+    )
+    pcate = models.CharField(max_length=50, choices=CATEGORY_CHOICES, verbose_name="类别", default='通用', null=False, blank=False, help_text="词条类别")
+    cn = models.CharField(max_length=200, verbose_name="中文", help_text="词条中文")
+    en = models.CharField(max_length=200, verbose_name="英文", help_text="词条英文")
+    infos = models.CharField(max_length=200, verbose_name="信息", null=True, blank=True, help_text="额外信息")
+    note = models.CharField(max_length=200, verbose_name="备注", null=True, blank=True, help_text="备注信息")
+    ainote = models.CharField(max_length=200, verbose_name="AI备注", null=True, blank=True, help_text="备注信息")
+
+    class Meta:
+        db_table = table_prefix + "transdicts"
+        verbose_name = "翻译字典"
+        verbose_name_plural = verbose_name
+        ordering = ("-create_datetime",) 
