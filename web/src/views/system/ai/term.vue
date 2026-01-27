@@ -1247,13 +1247,19 @@ const loadTerms = async () => {
     loadingTerms.value = true
     const response = await GetList({
       page: currentPage.value,
-      size: pageSize.value,
+      limit: pageSize.value,  // 后端使用 limit 参数名，不是 size
       ordering: '-create_datetime'
     })
+
+    console.log('加载术语参数:', { page: currentPage.value, limit: pageSize.value })
+    console.log('后端响应:', response)
 
     if (response.code === 2000) {
       // 数据直接在 response.data 数组中
       const transdicts = response.data
+
+      console.log('原始数据条数:', transdicts ? transdicts.length : 0)
+      console.log('总数:', response.total)
 
       // 保存总数，从 response.total 获取
       total.value = response.total || 0
@@ -1275,6 +1281,10 @@ const loadTerms = async () => {
         cn: item.cn,
         en: item.en
       }))
+
+      console.log('转换后数据条数:', loadedTerms.value.length)
+      console.log('displayTableTerms条数:', displayTableTerms.value.length)
+      console.log('filteredTableTerms条数:', filteredTableTerms.value.length)
 
       ElMessage.success(`成功加载第 ${currentPage.value} 页数据（${loadedTerms.value.length} 条），共 ${total.value} 条`)
     }
