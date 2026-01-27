@@ -763,6 +763,7 @@
                 show-score
                 score-template="{value}"
                 size="small"
+                :colors="getWeightColors(row.weight)"
               ></el-rate>
             </template>
           </el-table-column>
@@ -1200,6 +1201,7 @@
             show-score
             score-template="{value}"
             allow-half
+            :colors="getWeightColors(editingTerm.weight)"
           ></el-rate>
         </el-form-item>
 
@@ -1341,7 +1343,7 @@ const loadTerms = async () => {
         id: item.id,
         original: item.cn,
         type: 'professional',  // 默认为专业术语
-        weight: 4,  // 默认权重
+        weight: 3,  // 默认权重（三颗星）
         translations: [
           { lang: 'en', text: item.en }
         ],
@@ -1840,6 +1842,22 @@ const copyTerm = (term: any) => {
   let text = `中文：${zhText}\nEnglish：${enText}\n类型：${term.type === 'professional' ? '专业术语' : '普通词汇'}`
   navigator.clipboard.writeText(text)
   ElMessage.success('已复制到剪贴板')
+}
+
+// 获取权重颜色（根据星数返回不同颜色）
+const getWeightColors = (weight: number) => {
+  // 根据权重返回颜色数组：从1星到5星的颜色逐渐加深
+  if (weight <= 1) {
+    return ['#99A9BF', '#99A9BF', '#99A9BF', '#99A9BF', '#99A9BF'] // 灰色
+  } else if (weight <= 2) {
+    return ['#67C23A', '#67C23A', '#99A9BF', '#99A9BF', '#99A9BF'] // 绿色
+  } else if (weight <= 3) {
+    return ['#409EFF', '#409EFF', '#409EFF', '#99A9BF', '#99A9BF'] // 蓝色
+  } else if (weight <= 4) {
+    return ['#E6A23C', '#E6A23C', '#E6A23C', '#E6A23C', '#99A9BF'] // 橙色
+  } else {
+    return ['#F56C6C', '#F56C6C', '#F56C6C', '#F56C6C', '#F56C6C'] // 红色
+  }
 }
 
 // 编辑术语
