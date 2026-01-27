@@ -651,7 +651,8 @@
                 :icon="Refresh"
                 size="small"
                 circle
-                title="刷新随机术语"
+                :loading="loadingTerms"
+                :title="loadedTerms.length > 0 ? '刷新术语数据' : '刷新随机术语'"
               ></el-button>
               <el-button
                 type="primary"
@@ -669,15 +670,17 @@
         <!-- 闲置提示 -->
         <el-alert
           v-if="!analysisResult"
-          title="当前展示随机专业术语示例"
+          :title="loadedTerms.length > 0 ? '已加载翻译字典数据' : '当前展示随机专业术语示例'"
           type="info"
           :closable="false"
           class="idle-alert"
         >
           <template #default>
-            <p>💡 输入文本并点击"开始分析"后，将显示基于您文本的术语对照表</p>
-            <p>🔄 点击右上角刷新按钮可以查看更多示例术语</p>
-            <p>📚 随机展示机械、自动化、液压等领域的常见专业术语</p>
+            <p v-if="loadedTerms.length > 0">💡 当前展示从后端加载的翻译字典数据（{{ loadedTerms.length }} 条）</p>
+            <p v-else>💡 输入文本并点击"开始分析"后，将显示基于您文本的术语对照表</p>
+            <p>🔄 点击右上角刷新按钮可以{{ loadedTerms.length > 0 ? '重新加载数据' : '查看更多示例术语' }}</p>
+            <p v-if="loadedTerms.length > 0">📚 展示数据库中的中英文术语对照</p>
+            <p v-else>📚 随机展示机械、自动化、液压等领域的常见专业术语</p>
           </template>
         </el-alert>
 
@@ -719,7 +722,6 @@
           stripe
           class="compare-table"
           border
-          height="600px"
           :row-class-name="getRowClassName"
         >
           <el-table-column label="序号" type="index" width="60" align="center" fixed></el-table-column>
@@ -802,6 +804,19 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <!-- 分页组件 -->
+        <el-pagination
+          v-if="loadedTerms.length > 0 && !analysisResult"
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="handleCurrentChange"
+          @size-change="handleSizeChange"
+          class="pagination"
+        />
 
         <!-- 统计摘要 -->
         <div class="compare-summary" v-if="analysisResult">
@@ -1150,8 +1165,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { GetList } from './api'
 import {
   Delete, Document, DataAnalysis, Search, Reading,
   Notebook, ChatDotRound, DataLine, Top, Bottom,
@@ -1179,6 +1195,15 @@ const showHighWeightOnly = ref(false)
 
 // 随机术语
 const randomTerms = ref<any[]>([])
+
+// 从后端加载的术语列表
+const loadedTerms = ref<any[]>([])
+const loadingTerms = ref(false)
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 
 // 对照模式
 const showSideBySide = ref(false)
@@ -1215,6 +1240,56 @@ const languageMap: { [key: string]: string } = {
 
 // 分析结果
 const analysisResult = ref<any>(null)
+
+// 从后端加载术语数据
+const loadTerms = async () => {
+  try {
+    loadingTerms.value = true
+    const response = await GetList({
+      page: currentPage.value,
+      size: pageSize.value,
+      ordering: '-create_datetime'
+    })
+
+    if (response.code === 2000) {
+      // 数据直接在 response.data 数组中
+      const transdicts = response.data
+
+      // 保存总数，从 response.total 获取
+      total.value = response.total || 0
+
+      // 转换数据格式，适配前端显示
+      loadedTerms.value = transdicts.map((item: any) => ({
+        id: item.id,
+        original: item.cn,
+        type: 'professional',  // 默认为专业术语
+        weight: 4,  // 默认权重
+        translations: [
+          { lang: 'en', text: item.en }
+        ],
+        notes: item.note || item.infos || '',
+        examples: [],
+        frequency: 1,
+        categories: [item.pcate_display || item.pcate || '通用'],
+        pcate: item.pcate,
+        cn: item.cn,
+        en: item.en
+      }))
+
+      ElMessage.success(`成功加载第 ${currentPage.value} 页数据（${loadedTerms.value.length} 条），共 ${total.value} 条`)
+    }
+  } catch (error: any) {
+    console.error('加载术语数据失败:', error)
+    ElMessage.error(`加载失败: ${error.message || '未知错误'}`)
+  } finally {
+    loadingTerms.value = false
+  }
+}
+
+// 组件挂载时加载术语
+onMounted(() => {
+  loadTerms()
+})
 
 // 机械零部件示例文本
 const exampleTexts = {
@@ -1438,11 +1513,13 @@ const displayTableTerms = computed(() => {
   if (analysisResult.value) {
     return analysisResult.value.terms
   }
-  return randomTerms.value
+  // 优先使用从后端加载的数据，如果没有则使用随机数据
+  return loadedTerms.value.length > 0 ? loadedTerms.value : randomTerms.value
 })
 
 // 过滤后的表格术语
 const filteredTableTerms = computed(() => {
+  // 闲置状态下，loadedTerms 已经是当前页的数据，不需要再次分页
   let terms = displayTableTerms.value
 
   // 按类型筛选
@@ -1515,8 +1592,26 @@ const initRandomTerms = () => {
 
 // 刷新随机术语
 const refreshRandomTerms = () => {
-  initRandomTerms()
-  ElMessage.success('已刷新随机术语示例')
+  // 如果有后端加载的数据，重新加载数据
+  if (loadedTerms.value.length > 0) {
+    currentPage.value = 1  // 重置到第一页
+    loadTerms()
+  } else {
+    initRandomTerms()
+    ElMessage.success('已刷新随机术语示例')
+  }
+}
+
+// 分页事件处理
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page
+  loadTerms()
+}
+
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1  // 改变每页大小时重置到第一页
+  loadTerms()
 }
 
 // 获取行样式
@@ -1862,8 +1957,6 @@ watch(() => inputLang.value, () => {
 
 // 组件初始化
 initRandomTerms()
-
-import { watch } from 'vue'
 </script>
 
 <style scoped>
@@ -2274,6 +2367,14 @@ import { watch } from 'vue'
 }
 
 /* 统计摘要 */
+/* 分页样式 */
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0;
+}
+
 .compare-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
