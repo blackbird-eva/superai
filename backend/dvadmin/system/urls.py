@@ -6,6 +6,7 @@ from dvadmin.system.views.area import AreaViewSet
 from dvadmin.system.views.clause import PrivacyView, TermsServiceView
 from dvadmin.system.views.dept import DeptViewSet
 from dvadmin.system.views.dictionary import DictionaryViewSet
+from dvadmin.system.views.transdicts import TransdictsViewSet, GetTransdictsCategoriesView
 from dvadmin.system.views.file_list import FileViewSet
 from dvadmin.system.views.login_log import LoginLogViewSet
 from dvadmin.system.views.menu import MenuViewSet
@@ -28,6 +29,7 @@ system_url.register(r'dept', DeptViewSet)
 system_url.register(r'user', UserViewSet)
 system_url.register(r'operation_log', OperationLogViewSet)
 system_url.register(r'dictionary', DictionaryViewSet)
+system_url.register(r'transdicts', TransdictsViewSet)
 system_url.register(r'area', AreaViewSet)
 system_url.register(r'file', FileViewSet)
 system_url.register(r'api_white_list', ApiWhiteListViewSet)
@@ -49,7 +51,8 @@ urlpatterns = [
     path('system_config/get_relation_info/', SystemConfigViewSet.as_view({'get': 'get_relation_info'})),
     # path('login_log/', LoginLogViewSet.as_view({'get': 'list'})),
     # path('login_log/<int:pk>/', LoginLogViewSet.as_view({'get': 'retrieve'})),
-    # path('dept_lazy_tree/', DeptViewSet.as_view({'get': 'dept_lazy_tree'})),
+    #     path('dept_lazy_tree/', DeptViewSet.as_view({'get': 'dept_lazy_tree'})),
+    path('transdicts/categories/', GetTransdictsCategoriesView.as_view()),
     path('clause/privacy.html', PrivacyView.as_view()),
     path('clause/terms_service.html', TermsServiceView.as_view()),
 ]
