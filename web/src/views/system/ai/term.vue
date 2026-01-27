@@ -783,6 +783,15 @@
           </el-table-column>
           <el-table-column label="操作" width="120" align="center" fixed="right">
             <template #default="{ row }">
+              <el-tooltip content="编辑" placement="top">
+                <el-button
+                  type="warning"
+                  link
+                  :icon="Edit"
+                  @click="editTerm(row)"
+                  size="small"
+                ></el-button>
+              </el-tooltip>
               <el-tooltip content="复制" placement="top">
                 <el-button
                   type="primary"
@@ -1161,17 +1170,75 @@
         <el-button type="primary" @click="copyTermDetail">复制详情</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑术语弹窗 -->
+    <el-dialog
+      v-model="editTermVisible"
+      title="编辑术语"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form v-if="editingTerm" :model="editingTerm" label-width="100px" label-position="left">
+        <el-form-item label="类型">
+          <el-select v-model="editingTerm.type" placeholder="请选择类型" style="width: 100%">
+            <el-option label="专业术语" value="professional"></el-option>
+            <el-option label="普通词汇" value="common"></el-option>
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="中文">
+          <el-input v-model="editingTerm.original" placeholder="请输入中文术语"></el-input>
+        </el-form-item>
+
+        <el-form-item label="English">
+          <el-input v-model="editingTerm.en" placeholder="请输入英文翻译"></el-input>
+        </el-form-item>
+
+        <el-form-item label="权重">
+          <el-rate
+            v-model="editingTerm.weight"
+            show-score
+            score-template="{value}"
+            allow-half
+          ></el-rate>
+        </el-form-item>
+
+        <el-form-item label="专业注释">
+          <el-input
+            v-model="editingTerm.notes"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入专业注释"
+          ></el-input>
+        </el-form-item>
+
+        <el-form-item label="频次">
+          <el-input-number
+            v-model="editingTerm.frequency"
+            :min="1"
+            :max="999"
+            placeholder="请输入频次"
+            style="width: 100%"
+          ></el-input-number>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="editTermVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveTerm" :loading="savingTerm">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { GetList } from './api'
+import { GetList, UpdateObj } from './api'
 import {
   Delete, Document, DataAnalysis, Search, Reading,
   Notebook, ChatDotRound, DataLine, Top, Bottom,
-  Position, CopyDocument, Hide, Download, View, Picture, Upload, StarFilled, Refresh
+  Position, CopyDocument, Hide, Download, View, Picture, Upload, StarFilled, Refresh, Edit
 } from '@element-plus/icons-vue'
 
 // 分析模式
@@ -1223,6 +1290,11 @@ const showExampleSection = ref(false)
 // 术语详情弹窗
 const termDetailVisible = ref(false)
 const selectedTerm = ref<any>(null)
+
+// 术语编辑弹窗
+const editTermVisible = ref(false)
+const editingTerm = ref<any>(null)
+const savingTerm = ref(false)
 
 // 图片分析相关
 const imageUrl = ref('')
@@ -1768,6 +1840,68 @@ const copyTerm = (term: any) => {
   let text = `中文：${zhText}\nEnglish：${enText}\n类型：${term.type === 'professional' ? '专业术语' : '普通词汇'}`
   navigator.clipboard.writeText(text)
   ElMessage.success('已复制到剪贴板')
+}
+
+// 编辑术语
+const editTerm = (term: any) => {
+  editingTerm.value = {
+    id: term.id,
+    type: term.type,
+    original: term.original,
+    en: term.en || getTranslation(term, 'en'),
+    weight: term.weight,
+    notes: term.notes,
+    frequency: term.frequency,
+    translations: term.translations
+  }
+  editTermVisible.value = true
+}
+
+// 保存术语
+const saveTerm = async () => {
+  if (!editingTerm.value) return
+
+  try {
+    savingTerm.value = true
+
+    // 调用后端更新接口
+    const response = await UpdateObj({
+      id: editingTerm.value.id,
+      cn: editingTerm.value.original,
+      en: editingTerm.value.en,
+      note: editingTerm.value.notes
+    })
+
+    if (response.code === 2000) {
+      // 更新本地数据
+      const index = loadedTerms.value.findIndex(t => t.id === editingTerm.value.id)
+      if (index !== -1) {
+        loadedTerms.value[index] = {
+          ...loadedTerms.value[index],
+          type: editingTerm.value.type,
+          original: editingTerm.value.original,
+          en: editingTerm.value.en,
+          weight: editingTerm.value.weight,
+          notes: editingTerm.value.notes,
+          frequency: editingTerm.value.frequency,
+          translations: [
+            { lang: 'en', text: editingTerm.value.en }
+          ],
+          cn: editingTerm.value.original
+        }
+      }
+
+      ElMessage.success('术语更新成功')
+      editTermVisible.value = false
+    } else {
+      ElMessage.error(response.msg || '更新失败')
+    }
+  } catch (error: any) {
+    console.error('保存术语失败:', error)
+    ElMessage.error(`保存失败: ${error.message || '未知错误'}`)
+  } finally {
+    savingTerm.value = false
+  }
 }
 
 // 导出表格
