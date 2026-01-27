@@ -7,3 +7,5 @@
 web/package-lock.json
 *.pyc   
 *.bat
+backend/data.xlsx
+package-lock.json

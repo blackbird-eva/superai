@@ -4,8 +4,10 @@
 翻译字典管理
 Created on: 2026-01-27
 """
+from rest_framework.permissions import AllowAny
 from rest_framework import serializers
 from rest_framework.views import APIView
+from rest_framework.renderers import JSONRenderer
 
 from dvadmin.system.models import Transdicts
 from dvadmin.utils.json_response import SuccessResponse
@@ -108,11 +110,16 @@ class TransdictsViewSet(CustomModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+ 
+
 class GetTransdictsCategoriesView(APIView):
     """
     获取翻译字典分类列表
     """
     from dvadmin.system.models import Transdicts
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
 
     def get(self, request):
         """
@@ -128,3 +135,18 @@ class GetTransdictsCategoriesView(APIView):
             {'value': '其他', 'label': '其他'},
         ]
         return SuccessResponse(data=categories, msg="获取成功")
+
+
+class MyTaskHelloView(APIView):
+    """
+    我的任务 - Hello 测试接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        """
+        返回 Hello 信息
+        """
+        return SuccessResponse(data="hello", msg="成功")
