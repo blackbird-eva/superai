@@ -720,6 +720,7 @@ class Transdicts(CoreModel):
     infos = models.CharField(max_length=200, verbose_name="信息", null=True, blank=True, help_text="额外信息")
     note = models.CharField(max_length=200, verbose_name="备注", null=True, blank=True, help_text="备注信息")
     ainote = models.CharField(max_length=200, verbose_name="AI备注", null=True, blank=True, help_text="备注信息")
+    weight = models.FloatField(verbose_name="权重", default=3.0, help_text="权重")
 
     class Meta:
         db_table = table_prefix + "transdicts"

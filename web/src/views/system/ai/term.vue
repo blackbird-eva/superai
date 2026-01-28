@@ -124,11 +124,12 @@
               </div>
               <div class="term-weight">
                 <el-rate
-                  v-model="term.weight"
+                  :model-value="term.weight / 2"
+                  :max="4"
                   disabled
                   show-score
                   text-color="#ff9900"
-                  score-template="{value}"
+                  score-template="权重: {value * 2}"
                 ></el-rate>
               </div>
             </div>
@@ -275,11 +276,12 @@
               </div>
               <div class="term-weight">
                 <el-rate
-                  v-model="term.weight"
+                  :model-value="term.weight / 2"
+                  :max="4"
                   disabled
                   show-score
                   text-color="#ff9900"
-                  score-template="{value}"
+                  score-template="权重: {value * 2}"
                 ></el-rate>
               </div>
             </div>
@@ -435,7 +437,7 @@
             </el-table-column>
             <el-table-column prop="weight" label="权重" width="120" align="center">
               <template #default="{ row }">
-                <el-rate v-model="row.weight" disabled show-score score-template="{value}"></el-rate>
+                <el-rate :model-value="row.weight / 2" :max="4" disabled show-score score-template="权重: {value * 2}"></el-rate>
               </template>
             </el-table-column>
             <el-table-column prop="frequency" label="频次" width="100" align="center"></el-table-column>
@@ -758,12 +760,13 @@
           <el-table-column label="权重" width="90" align="center">
             <template #default="{ row }">
               <el-rate
-                v-model="row.weight"
+                :model-value="row.weight / 2"
+                :max="4"
                 disabled
                 show-score
-                score-template="{value}"
+                score-template="权重: {value * 2}"
                 size="small"
-                :colors="getWeightColors(row.weight)"
+                :colors="getWeightColors(row.weight / 2)"
               ></el-rate>
             </template>
           </el-table-column>
@@ -933,7 +936,7 @@
             </el-table-column>
             <el-table-column prop="weight" label="权重" width="120" align="center">
               <template #default="{ row }">
-                <el-rate v-model="row.weight" disabled show-score score-template="{value}"></el-rate>
+                <el-rate :model-value="row.weight / 2" :max="4" disabled show-score score-template="权重: {value * 2}"></el-rate>
               </template>
             </el-table-column>
             <el-table-column prop="frequency" label="频次" width="100" align="center"></el-table-column>
@@ -1132,7 +1135,7 @@
             {{ selectedTerm.type === 'professional' ? '专业术语' : '普通词汇' }}
           </el-tag>
           <h2 class="detail-term">{{ selectedTerm.original }}</h2>
-          <el-rate v-model="selectedTerm.weight" disabled show-score score-template="权重: {value}"></el-rate>
+          <el-rate :model-value="selectedTerm.weight / 2" :max="4" disabled show-score score-template="权重: {value * 2}"></el-rate>
         </div>
 
         <div class="detail-section">
@@ -1197,11 +1200,12 @@
 
         <el-form-item label="权重">
           <el-rate
-            v-model="editingTerm.weight"
+            v-model="editingWeightDisplay"
+            :max="4"
             show-score
-            score-template="{value}"
+            score-template="权重: {value * 2}"
             allow-half
-            :colors="getWeightColors(editingTerm.weight)"
+            :colors="getWeightColors(editingWeightDisplay)"
           ></el-rate>
         </el-form-item>
 
@@ -1298,6 +1302,18 @@ const editTermVisible = ref(false)
 const editingTerm = ref<any>(null)
 const savingTerm = ref(false)
 
+// 权重显示值（用于编辑，范围0-4，对应实际权重0-8）
+const editingWeightDisplay = computed({
+  get: () => {
+    return editingTerm.value ? (editingTerm.value.weight || 3) / 2 : 3 / 2
+  },
+  set: (val) => {
+    if (editingTerm.value) {
+      editingTerm.value.weight = Math.round(val * 10) / 5  // 保留1位小数，如3.5 -> 7.0
+    }
+  }
+})
+
 // 图片分析相关
 const imageUrl = ref('')
 const imageAnalysisResult = ref('')
@@ -1343,7 +1359,7 @@ const loadTerms = async () => {
         id: item.id,
         original: item.cn,
         type: 'professional',  // 默认为专业术语
-        weight: 3,  // 默认权重（三颗星）
+        weight: item.weight || 3,  // 从后端读取权重，默认为3
         translations: [
           { lang: 'en', text: item.en }
         ],
@@ -1846,17 +1862,17 @@ const copyTerm = (term: any) => {
 
 // 获取权重颜色（根据星数返回不同颜色）
 const getWeightColors = (weight: number) => {
-  // 根据权重返回颜色数组：从1星到5星的颜色逐渐加深
+  // weight是显示的星数（0-4），对应实际权重0-8
   if (weight <= 1) {
-    return ['#99A9BF', '#99A9BF', '#99A9BF', '#99A9BF', '#99A9BF'] // 灰色
+    return ['#99A9BF', '#99A9BF', '#99A9BF', '#99A9BF'] // 灰色
   } else if (weight <= 2) {
-    return ['#67C23A', '#67C23A', '#99A9BF', '#99A9BF', '#99A9BF'] // 绿色
+    return ['#67C23A', '#67C23A', '#99A9BF', '#99A9BF'] // 绿色
   } else if (weight <= 3) {
-    return ['#409EFF', '#409EFF', '#409EFF', '#99A9BF', '#99A9BF'] // 蓝色
-  } else if (weight <= 4) {
-    return ['#E6A23C', '#E6A23C', '#E6A23C', '#E6A23C', '#99A9BF'] // 橙色
+    return ['#409EFF', '#409EFF', '#409EFF', '#99A9BF'] // 蓝色
+  } else if (weight < 4) {
+    return ['#E6A23C', '#E6A23C', '#E6A23C', '#E6A23C'] // 橙色
   } else {
-    return ['#F56C6C', '#F56C6C', '#F56C6C', '#F56C6C', '#F56C6C'] // 红色
+    return ['#F56C6C', '#F56C6C', '#F56C6C', '#F56C6C'] // 红色（满分4星=权重8）
   }
 }
 
@@ -1883,12 +1899,17 @@ const saveTerm = async () => {
     savingTerm.value = true
 
     // 调用后端更新接口
-    const response = await UpdateObj({
+    const updateData = {
       id: editingTerm.value.id,
       cn: editingTerm.value.original,
       en: editingTerm.value.en,
+      weight: editingTerm.value.weight,
       note: editingTerm.value.notes
-    })
+    }
+    console.log('准备上传的数据:', updateData)
+    console.log('editingTerm:', editingTerm.value)
+
+    const response = await UpdateObj(updateData)
 
     if (response.code === 2000) {
       // 更新本地数据

@@ -67,6 +67,7 @@ class TransdictsViewSet(CustomModelViewSet):
     queryset = Transdicts.objects.all()
     serializer_class = TransdictsSerializer
     create_serializer_class = TransdictsCreateUpdateSerializer
+    update_serializer_class = TransdictsCreateUpdateSerializer
     extra_filter_class = []
     search_fields = ['cn', 'en']
 
