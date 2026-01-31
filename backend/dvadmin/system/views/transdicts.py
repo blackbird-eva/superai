@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 翻译字典管理
 Created on: 2026-01-27
@@ -10,11 +9,16 @@ from rest_framework.views import APIView
 from rest_framework.renderers import JSONRenderer
 import openpyxl
 import os
+import uuid
+from datetime import datetime
 
-from dvadmin.system.models import Transdicts
+from dvadmin.system.models import Transdicts, Docxfile
+from dvadmin.system.serializers.transdicts import DocxfileSerializer, DocxfileUploadSerializer
 from dvadmin.utils.json_response import SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
+from django.http import HttpResponse
+from django.conf import settings
 
 
 class TransdictsSerializer(CustomModelSerializer):
@@ -112,8 +116,6 @@ class TransdictsViewSet(CustomModelViewSet):
         """
         return super().destroy(request, *args, **kwargs)
 
-
- 
 
 class GetTransdictsCategoriesView(APIView):
     """
@@ -356,3 +358,229 @@ class TranslateView(APIView):
         except Exception as e:
             print(f"翻译查询错误: {str(e)}")
             return None
+
+
+# =============================================================================
+# 文档翻译相关 API 视图
+# =============================================================================
+
+class DocumentUploadView(APIView):
+    """
+    文档上传接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        """
+        上传文档
+        """
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return SuccessResponse(data={}, msg="请选择要上传的文件", code=400)
+            
+            # 验证文件类型
+            allowed_types = ['docx', 'ppt', 'pptx', 'pdf', 'txt']
+            file_ext = file.name.split('.')[-1].lower()
+            if file_ext not in allowed_types:
+                return SuccessResponse(data={}, msg=f"不支持的文件类型，支持: {', '.join(allowed_types)}", code=400)
+            
+            # 验证文件大小 (50MB)
+            if file.size > 50 * 1024 * 1024:
+                return SuccessResponse(data={}, msg="文件大小不能超过50MB", code=400)
+            
+            # 生成唯一文件名
+            unique_filename = f"{uuid.uuid4().hex}.{file_ext}"
+            date_path = datetime.now().strftime('%Y/%m/%d')
+            file_path = f"docxfile/{date_path}/{unique_filename}"
+            
+            # 确保目录存在
+            full_dir_path = os.path.join(settings.MEDIA_ROOT, f"docxfile/{date_path}")
+            os.makedirs(full_dir_path, exist_ok=True)
+            
+            # 保存文件
+            full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+            with open(full_file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            
+            # 创建 Docxfile 记录
+            docxfile = Docxfile.objects.create(
+                original_name=file.name,
+                file_path=file_path,
+                file_size=file.size,
+                type=file_ext,
+                about_text=request.data.get('about_text', ''),
+                transtask=request.data.get('transtask', True),
+                graphtask=request.data.get('graphtask', False),
+                share=request.data.get('share', False),
+                userversion=request.data.get('userversion', True),
+                source_language=request.data.get('source_lang', 'auto'),
+                target_language=request.data.get('target_lang', 'zh'),
+                status='uploaded'
+            )
+            
+            return SuccessResponse(
+                data={
+                    'id': docxfile.id,
+                    'original_name': docxfile.original_name,
+                    'type': docxfile.type,
+                    'type_display': dict(Docxfile.DOCUMENT_TYPES).get(docxfile.type, '未知'),
+                    'file_size': docxfile.file_size,
+                    'status': docxfile.status,
+                    'transtask': docxfile.transtask,
+                    'graphtask': docxfile.graphtask,
+                    'share': docxfile.share,
+                    'userversion': docxfile.userversion,
+                    'about_text': docxfile.about_text,
+                    'source_language': docxfile.source_language,
+                    'target_language': docxfile.target_language
+                },
+                msg="上传成功"
+            )
+            
+        except Exception as e:
+            return SuccessResponse(data={}, msg=f"上传失败: {str(e)}", code=500)
+
+
+class DocumentTranslateView(APIView):
+    """
+    文档翻译接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        """
+        执行文档翻译
+        """
+        try:
+            file = request.FILES.get('file')
+            source_lang = request.data.get('source_lang', 'auto')
+            target_lang = request.data.get('target_lang', 'zh')
+            
+            if not file:
+                return SuccessResponse(data={}, msg="请选择要翻译的文件", code=400)
+            
+            # 验证文件类型
+            allowed_types = ['docx']
+            file_ext = file.name.split('.')[-1].lower()
+            if file_ext not in allowed_types:
+                return SuccessResponse(data={}, msg=f"当前仅支持DOCX格式文档翻译", code=400)
+            
+            # 检查 python-docx 是否可用
+            try:
+                import docx
+                need_install = False
+            except ImportError:
+                need_install = True
+                return SuccessResponse(
+                    data={'need_install': True},
+                    msg="需要安装 python-docx 库: pip install python-docx"
+                )
+            
+            # 保存上传的文件
+            unique_filename = f"{uuid.uuid4().hex}.{file_ext}"
+            date_path = datetime.now().strftime('%Y/%m/%d')
+            upload_path = f"docxfile/{date_path}/{unique_filename}"
+            
+            full_dir_path = os.path.join(settings.MEDIA_ROOT, f"docxfile/{date_path}")
+            os.makedirs(full_dir_path, exist_ok=True)
+            
+            full_file_path = os.path.join(settings.MEDIA_ROOT, upload_path)
+            with open(full_file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            
+            # 解析文档并翻译
+            from docx import Document
+            doc = Document(full_file_path)
+            
+            translated_paragraphs = []
+            preview_data = []
+            
+            for i, paragraph in enumerate(doc.paragraphs):
+                text = paragraph.text.strip()
+                if text:
+                    # 这里应该调用翻译服务，现在只是模拟
+                    translated_text = f"[译文] {text}"
+                    translated_paragraphs.append(translated_text)
+                    
+                    # 收集预览数据（前5段）
+                    if len(preview_data) < 5:
+                        preview_data.append({
+                            'original': text,
+                            'translated': translated_text
+                        })
+            
+            # 创建翻译后的文档
+            translated_filename = f"translated_{unique_filename}"
+            translated_path = f"docxfile/{date_path}/{translated_filename}"
+            translated_full_path = os.path.join(settings.MEDIA_ROOT, translated_path)
+            
+            # 创建新文档
+            translated_doc = Document()
+            for para in translated_paragraphs:
+                translated_doc.add_paragraph(para)
+            
+            translated_doc.save(translated_full_path)
+            
+            # 计算统计信息
+            paragraph_count = len([p for p in doc.paragraphs if p.text.strip()])
+            word_count = sum(len(p.text.split()) for p in doc.paragraphs if p.text.strip())
+            
+            result = {
+                'paragraph_count': paragraph_count,
+                'word_count': word_count,
+                'translated_path': translated_path,
+                'translated_filename': translated_filename,
+                'preview': preview_data,
+                'source_lang': source_lang,
+                'target_lang': target_lang,
+                'need_install': False
+            }
+            
+            return SuccessResponse(data=result, msg="翻译完成")
+            
+        except Exception as e:
+            return SuccessResponse(data={}, msg=f"翻译失败: {str(e)}", code=500)
+
+
+class DocumentDownloadView(APIView):
+    """
+    文档下载接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        """
+        下载翻译后的文档
+        """
+        try:
+            file_path = request.GET.get('file_path')
+            if not file_path:
+                return SuccessResponse(data={}, msg="文件路径不能为空", code=400)
+            
+            # 安全检查：确保文件路径在允许的目录下
+            if not file_path.startswith('docxfile/'):
+                return SuccessResponse(data={}, msg="无效的文件路径", code=400)
+            
+            full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+            
+            if not os.path.exists(full_file_path):
+                return SuccessResponse(data={}, msg="文件不存在", code=404)
+            
+            # 返回文件
+            with open(full_file_path, 'rb') as file:
+                response = HttpResponse(file.read(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                filename = os.path.basename(file_path)
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+                
+        except Exception as e:
+            return SuccessResponse(data={}, msg=f"下载失败: {str(e)}", code=500)

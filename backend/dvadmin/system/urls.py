@@ -6,7 +6,7 @@ from dvadmin.system.views.area import AreaViewSet
 from dvadmin.system.views.clause import PrivacyView, TermsServiceView
 from dvadmin.system.views.dept import DeptViewSet
 from dvadmin.system.views.dictionary import DictionaryViewSet
-from dvadmin.system.views.transdicts import TransdictsViewSet, GetTransdictsCategoriesView, MyTaskHelloView, ReadExcelView, TranslateView
+from dvadmin.system.views.transdicts import TransdictsViewSet, GetTransdictsCategoriesView, MyTaskHelloView, ReadExcelView, TranslateView, DocumentUploadView, DocumentTranslateView, DocumentDownloadView
 from dvadmin.system.views.file_list import FileViewSet
 from dvadmin.system.views.login_log import LoginLogViewSet
 from dvadmin.system.views.menu import MenuViewSet
@@ -55,6 +55,9 @@ urlpatterns = [
     path('transdicts/categories/', GetTransdictsCategoriesView.as_view()),
     path('transdicts/read_excel/', ReadExcelView.as_view()),
     path('transdicts/translate/', TranslateView.as_view()),
+    path('transdicts/document/upload/', DocumentUploadView.as_view()),
+    path('transdicts/document/', DocumentTranslateView.as_view()),
+    path('transdicts/document/download/', DocumentDownloadView.as_view()),
     path('mytask/hello/', MyTaskHelloView.as_view()),
     path('clause/privacy.html', PrivacyView.as_view()),
     path('clause/terms_service.html', TermsServiceView.as_view()),

@@ -96,3 +96,43 @@ export function Translate(data: { text: string; source_lang: string; target_lang
         data: data,
     });
 }
+
+/**
+ * 文档翻译
+ */
+export function TranslateDocument(data: FormData) {
+    return request({
+        url: apiPrefix + 'document/',
+        method: 'post',
+        data: data,
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+}
+
+/**
+ * 下载翻译后的文档
+ */
+export function DownloadDocument(file_path: string) {
+    return request({
+        url: apiPrefix + 'document/download/',
+        method: 'get',
+        params: { file_path },
+        responseType: 'blob',
+    });
+}
+
+/**
+ * 文档上传（带配置信息）
+ */
+export function DocumentUpload(data: FormData) {
+    return request({
+        url: apiPrefix + 'document/upload/',
+        method: 'post',
+        data: data,
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+}
