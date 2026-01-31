@@ -238,18 +238,24 @@
     <el-dialog
       title="新建文档修订"
       v-model="showRevisionDialog"
-      width="700px"
+      width="900px"
       @close="resetRevisionForm"
+      :close-on-click-modal="false"
     >
       <el-form :model="revisionForm" :rules="revisionRules" ref="revisionFormRef" label-width="100px">
-        <el-form-item label="文档标题" prop="title">
-          <el-input v-model="revisionForm.title" placeholder="请输入文档标题" />
-        </el-form-item>
-        
-        <el-form-item label="修订版本" prop="version">
-          <el-input v-model="revisionForm.version" placeholder="如：1.2.0" />
-        </el-form-item>
-        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="文档标题" prop="title">
+              <el-input v-model="revisionForm.title" placeholder="请输入文档标题" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="修订版本" prop="version">
+              <el-input v-model="revisionForm.version" placeholder="如：1.2.0" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="修订摘要" prop="summary">
           <el-input
             v-model="revisionForm.summary"
@@ -258,7 +264,61 @@
             placeholder="简述本次修订的主要内容"
           />
         </el-form-item>
-        
+
+        <el-form-item label="文档内容">
+          <div class="editor-container">
+            <!-- 富文本编辑器工具栏 -->
+            <div class="editor-toolbar">
+              <el-button-group>
+                <el-button :type="editorMode === 'edit' ? 'primary' : ''" @click="editorMode = 'edit'" size="small">
+                  编辑模式
+                </el-button>
+                <el-button :type="editorMode === 'preview' ? 'primary' : ''" @click="editorMode = 'preview'" size="small">
+                  预览模式
+                </el-button>
+                <el-button :type="editorMode === 'compare' ? 'primary' : ''" @click="editorMode = 'compare'" size="small" :disabled="!hasOldContent">
+                  版本对比
+                </el-button>
+              </el-button-group>
+              <div class="editor-tools">
+                <el-button text @click="clearEditor" size="small">清空</el-button>
+                <el-button text @click="exportDocument" size="small">导出</el-button>
+                <el-button text @click="importDocument" size="small">导入</el-button>
+              </div>
+            </div>
+
+            <!-- 编辑模式 -->
+            <div v-show="editorMode === 'edit'" class="editor-content">
+              <textarea
+                ref="editorRef"
+                v-model="revisionForm.content"
+                class="markdown-editor"
+                placeholder="支持 Markdown 格式，请输入文档内容..."
+                @input="handleEditorInput"
+              ></textarea>
+            </div>
+
+            <!-- 预览模式 -->
+            <div v-show="editorMode === 'preview'" class="preview-content markdown-body">
+              <div v-html="renderMarkdown(revisionForm.content)"></div>
+            </div>
+
+            <!-- 版本对比模式 -->
+            <div v-show="editorMode === 'compare'" class="compare-content">
+              <div class="diff-container">
+                <div class="diff-panel diff-left">
+                  <h4>旧版本</h4>
+                  <div class="diff-text markdown-body" v-html="renderMarkdown(revisionForm.oldContent || '无旧版本')"></div>
+                </div>
+                <div class="diff-panel diff-right">
+                  <h4>新版本</h4>
+                  <div class="diff-text markdown-body" v-html="renderMarkdown(revisionForm.content)"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="详细变更">
           <div class="changes-input">
             <div v-for="(change, index) in revisionForm.changes" :key="index" class="change-item">
@@ -284,35 +344,30 @@
             </el-button>
           </div>
         </el-form-item>
-        
-        <el-form-item label="修订内容">
-          <el-input
-            v-model="revisionForm.content"
-            type="textarea"
-            :rows="8"
-            placeholder="请输入完整的修订后内容"
+
+        <el-form-item label="自动保存">
+          <el-switch
+            v-model="autoSave"
+            active-text="开启"
+            inactive-text="关闭"
+            @change="handleAutoSaveChange"
           />
-        </el-form-item>
-        
-        <el-form-item label="上传附件">
-          <el-upload
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :file-list="revisionForm.attachments"
-            multiple
-            accept=".pdf,.doc,.docx,.txt"
-          >
-            <el-button icon="Upload">选择文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">支持 PDF、Word、TXT 格式，单个文件不超过 10MB</div>
-            </template>
-          </el-upload>
+          <span class="save-status" v-if="autoSave">
+            <el-icon v-if="saving" class="is-loading"><Loading /></el-icon>
+            <span v-else-if="lastSavedTime">上次保存: {{ formatDateTime(lastSavedTime) }}</span>
+            <span v-else>等待保存...</span>
+          </span>
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="showRevisionDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitRevision" :loading="submitting">提交修订</el-button>
+        <el-button @click="saveDraft" :disabled="!hasUnsavedChanges" :loading="draftSaving">
+          保存草稿
+        </el-button>
+        <el-button type="primary" @click="submitRevision" :loading="submitting">
+          提交修订
+        </el-button>
       </template>
     </el-dialog>
 
@@ -363,11 +418,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  EditPen, Document, Clock, CircleCheck, Search, Plus, 
-  DocumentCopy, Download, View, Compare, Check 
+import {
+  EditPen, Document, Clock, CircleCheck, Search, Plus,
+  DocumentCopy, Download, View, Compare, Check, Loading
 } from '@element-plus/icons-vue'
 
 // 响应式数据
@@ -381,6 +436,17 @@ const comparisonResult = ref(null)
 const leftVersion = ref('')
 const rightVersion = ref('')
 const submitting = ref(false)
+const draftSaving = ref(false)
+const saving = ref(false)
+
+// 编辑器相关
+const editorRef = ref()
+const editorMode = ref('edit')
+const autoSave = ref(true)
+const lastSavedTime = ref<Date | null>(null)
+const saveTimer = ref<number | null>(null)
+const hasUnsavedChanges = ref(false)
+const hasOldContent = ref(false)
 
 // 统计数据
 const revisionStats = reactive({
@@ -396,11 +462,20 @@ const revisionForm = reactive({
   version: '',
   summary: '',
   content: '',
+  oldContent: '',
   changes: [
     { type: 'modify', description: '' }
   ],
   attachments: []
 })
+
+// 监听内容变化，标记未保存状态
+watch(() => revisionForm.content, (newVal, oldVal) => {
+  hasUnsavedChanges.value = newVal !== oldVal
+  if (autoSave.value) {
+    debouncedSave()
+  }
+}, { deep: true })
 
 // 表单验证规则
 const revisionRules = {
@@ -526,26 +601,184 @@ const createRevision = () => {
 
 const createNewRevision = (doc: any) => {
   selectedDoc.value = doc
+  // 获取最新版本的内容作为旧内容
+  const latestRevision = doc.revisions && doc.revisions.length > 0 ? doc.revisions[0] : null
+
   Object.assign(revisionForm, {
     title: doc.title,
     version: '',
     summary: '',
-    content: '',
+    content: latestRevision?.content || '',
+    oldContent: latestRevision?.content || '',
     changes: [{ type: 'modify', description: '' }],
     attachments: []
   })
+
+  hasOldContent.value = !!latestRevision?.content
+  hasUnsavedChanges.value = false
   showRevisionDialog.value = true
+}
+
+// 防抖保存函数
+const debouncedSave = debounce(() => {
+  autoSaveContent()
+}, 3000)
+
+// 防抖工具函数
+function debounce(func: Function, wait: number) {
+  let timeout: number | null = null
+  return function(...args: any[]) {
+    if (timeout) clearTimeout(timeout)
+    timeout = setTimeout(() => func.apply(this, args), wait)
+  }
+}
+
+// 自动保存内容
+const autoSaveContent = async () => {
+  if (!revisionForm.content || !autoSave.value) return
+
+  try {
+    saving.value = true
+
+    // 这里可以调用后端API保存草稿
+    // await saveDraftToServer(revisionForm)
+
+    // 模拟保存
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    lastSavedTime.value = new Date()
+    hasUnsavedChanges.value = false
+
+    console.log('自动保存成功', revisionForm.content.substring(0, 50) + '...')
+  } catch (error) {
+    console.error('自动保存失败:', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+// 保存草稿
+const saveDraft = async () => {
+  if (!revisionFormRef.value) return
+
+  try {
+    await revisionFormRef.value.validate()
+    draftSaving.value = true
+
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    ElMessage.success('草稿保存成功')
+    hasUnsavedChanges.value = false
+
+  } catch (error) {
+    ElMessage.error('请检查表单填写')
+  } finally {
+    draftSaving.value = false
+  }
+}
+
+// 编辑器输入处理
+const handleEditorInput = () => {
+  hasUnsavedChanges.value = true
+}
+
+// 清空编辑器
+const clearEditor = () => {
+  ElMessageBox.confirm('确定要清空编辑器内容吗？', '提示', {
+    type: 'warning'
+  }).then(() => {
+    revisionForm.content = ''
+    ElMessage.success('编辑器已清空')
+  }).catch(() => {})
+}
+
+// 导出文档
+const exportDocument = () => {
+  if (!revisionForm.content) {
+    ElMessage.warning('没有内容可导出')
+    return
+  }
+
+  const blob = new Blob([revisionForm.content], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${revisionForm.title || 'document'}.md`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
+}
+
+// 导入文档
+const importDocument = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.md,.txt'
+  input.onchange = (e: any) => {
+    const file = e.target.files[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e: any) => {
+        revisionForm.content = e.target.result
+        hasUnsavedChanges.value = true
+        ElMessage.success('导入成功')
+      }
+      reader.readAsText(file)
+    }
+  }
+  input.click()
+}
+
+// Markdown 渲染（简单实现）
+const renderMarkdown = (markdown: string) => {
+  if (!markdown) return '<p>暂无内容</p>'
+
+  // 简单的 Markdown 转换
+  let html = markdown
+    // 标题
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    // 粗体斜体
+    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+    // 代码块
+    .replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>')
+    .replace(/`(.*?)`/gim, '<code>$1</code>')
+    // 列表
+    .replace(/^\- (.*$)/gim, '<li>$1</li>')
+    // 链接
+    .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank">$1</a>')
+    // 换行
+    .replace(/\n/gim, '<br>')
+
+  return html
+}
+
+// 自动保存开关变化
+const handleAutoSaveChange = (value: boolean) => {
+  if (value) {
+    ElMessage.success('自动保存已开启')
+  } else {
+    ElMessage.info('自动保存已关闭')
+  }
 }
 
 const submitRevision = async () => {
   if (!revisionFormRef.value) return
-  
+
+  // 检查内容是否为空
+  if (!revisionForm.content.trim()) {
+    ElMessage.warning('请输入文档内容')
+    return
+  }
+
   try {
     await revisionFormRef.value.validate()
     submitting.value = true
-    
+
     await new Promise(resolve => setTimeout(resolve, 1500))
-    
+
     // 创建新修订记录
     const newRevision = {
       id: Date.now(),
@@ -557,12 +790,17 @@ const submitRevision = async () => {
       changes: revisionForm.changes.filter((c: any) => c.description.trim()),
       comments: [],
       content: revisionForm.content,
-      attachments: revisionForm.attachments
+      attachments: revisionForm.attachments,
+      oldContent: revisionForm.oldContent // 保存旧版本内容用于对比
     }
-    
+
     if (selectedDoc.value) {
       selectedDoc.value.revisions.unshift(newRevision)
       selectedDoc.value.revisionCount++
+
+      // 更新文档标题和修改时间
+      selectedDoc.value.title = revisionForm.title
+      selectedDoc.value.lastModified = new Date()
     } else {
       // 创建新文档
       const newDoc = {
@@ -576,11 +814,12 @@ const submitRevision = async () => {
       }
       documentList.value.unshift(newDoc)
     }
-    
+
     ElMessage.success('修订提交成功，等待审批')
+    hasUnsavedChanges.value = false
     showRevisionDialog.value = false
     resetRevisionForm()
-    
+
   } catch (error) {
     ElMessage.error('请检查表单填写')
   } finally {
@@ -594,10 +833,14 @@ const resetRevisionForm = () => {
     version: '',
     summary: '',
     content: '',
+    oldContent: '',
     changes: [{ type: 'modify', description: '' }],
     attachments: []
   })
   revisionFormRef.value?.resetFields()
+  hasUnsavedChanges.value = false
+  lastSavedTime.value = null
+  editorMode.value = 'edit'
 }
 
 const addChange = () => {
@@ -637,7 +880,7 @@ const updateComparison = () => {
       <div class="diff-line added">+ 新增GPU加速支持</div>
       <div class="diff-line modified">~ 优化模型推理速度30%</div>
       <div class="diff-line removed">- 移除旧版推理引擎</div>
-    `}
+    `
   }
 }
 
@@ -1061,6 +1304,198 @@ onMounted(() => {
 
 .change-item {
   margin-bottom: 10px;
+}
+
+.editor-container {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #dcdfe6;
+}
+
+.editor-tools {
+  display: flex;
+  gap: 5px;
+}
+
+.editor-content {
+  min-height: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.markdown-editor {
+  width: 100%;
+  min-height: 400px;
+  max-height: 600px;
+  padding: 15px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #303133;
+  background: white;
+}
+
+.markdown-editor:focus {
+  outline: none;
+}
+
+.preview-content {
+  min-height: 400px;
+  max-height: 600px;
+  padding: 20px;
+  overflow-y: auto;
+  background: white;
+}
+
+.markdown-body {
+  line-height: 1.6;
+  color: #303133;
+}
+
+.markdown-body h1 {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 20px 0 15px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e4e7ed;
+}
+
+.markdown-body h2 {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 18px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.markdown-body h3 {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 15px 0 10px 0;
+}
+
+.markdown-body p {
+  margin: 10px 0;
+}
+
+.markdown-body code {
+  background: #f4f4f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 13px;
+  color: #e6a23c;
+}
+
+.markdown-body pre {
+  background: #f4f4f5;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 15px 0;
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-body ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.markdown-body li {
+  margin: 5px 0;
+}
+
+.markdown-body a {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.compare-content {
+  min-height: 400px;
+  max-height: 600px;
+  padding: 15px;
+  overflow-y: auto;
+  background: #f5f7fa;
+}
+
+.diff-container {
+  display: flex;
+  gap: 20px;
+  height: 100%;
+}
+
+.diff-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: white;
+  overflow: hidden;
+}
+
+.diff-panel h4 {
+  margin: 0;
+  padding: 10px 15px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #dcdfe6;
+  font-weight: bold;
+}
+
+.diff-text {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.diff-left {
+  border-left: 3px solid #f56c6c;
+}
+
+.diff-right {
+  border-left: 3px solid #67c23a;
+}
+
+.save-status {
+  margin-left: 15px;
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.is-loading {
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .compare-container {

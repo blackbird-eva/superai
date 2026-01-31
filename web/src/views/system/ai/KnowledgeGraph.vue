@@ -128,26 +128,63 @@
                 </div>
                 <div class="viewer-controls" v-if="selectedGraph">
                   <el-button-group>
-                    <el-button icon="ZoomIn" @click="zoomIn" />
-                    <el-button icon="ZoomOut" @click="zoomOut" />
-                    <el-button icon="RefreshLeft" @click="resetView" />
+                    <el-button icon="RefreshLeft" @click="refreshGraph" />
+                    <el-button icon="Setting" @click="showLayoutSettings = true" />
                   </el-button-group>
-                  <el-button icon="Setting" @click="showLayoutSettings = true" />
                   <el-button type="primary" icon="Plus" @click="addNode">添加节点</el-button>
                 </div>
               </div>
             </template>
 
-            <!-- 图谱容器 -->
-            <div class="graph-container" ref="graphContainer">
+            <!-- 图谱容器 - 使用普通div而不是动态ref -->
+            <div class="graph-container">
               <div v-if="!selectedGraph" class="empty-state">
                 <el-empty description="请从左侧选择一个知识图谱进行查看" />
               </div>
               <div v-else-if="loading" class="loading-state">
-                <el-loading-service :loading="loading" />
-                <p>正在加载图谱数据...</p>
+                <div class="loading-wrapper">
+                  <el-icon class="loading-icon" :size="32"><Loading /></el-icon>
+                  <p>正在加载图谱数据...</p>
+                </div>
               </div>
-              <div v-else ref="chartContainer" class="echarts-container"></div>
+              <div v-else class="simple-graph-container">
+                <!-- 使用简单的CSS和HTML来显示图谱 -->
+                <div class="simple-graph">
+                  <h3>{{ selectedGraph.name }}</h3>
+                  <div class="graph-nodes">
+                    <div 
+                      v-for="node in currentNodes"
+                      :key="node.id"
+                      :class="['graph-node', node.category]"
+                      :style="getNodeStyle(node)"
+                      @mouseover="hoverNode = node"
+                      @mouseleave="hoverNode = null"
+                    >
+                      {{ node.name }}
+                    </div>
+                  </div>
+                  <div class="graph-legend">
+                    <h4>图例</h4>
+                    <div class="legend-item">
+                      <span class="legend-color core"></span>
+                      <span>核心概念</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color algorithm"></span>
+                      <span>算法技术</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color application"></span>
+                      <span>应用领域</span>
+                    </div>
+                  </div>
+                  <div v-if="hoverNode" class="node-tooltip">
+                    <strong>{{ hoverNode.name }}</strong><br>
+                    类别: {{ hoverNode.category }}<br>
+                    ID: {{ hoverNode.id }}
+                  </div>
+                </div>
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -183,82 +220,25 @@
             placeholder="请输入图谱描述"
           />
         </el-form-item>
-        <el-form-item label="标签">
-          <el-tag
-            v-for="tag in graphForm.tags"
-            :key="tag"
-            closable
-            @close="removeTag(tag)"
-            style="margin: 2px 5px"
-          >
-            {{ tag }}
-          </el-tag>
-          <el-input
-            v-if="tagInputVisible"
-            v-model="tagInputValue"
-            @keyup.enter="addTag"
-            @blur="addTag"
-            style="width: 100px"
-            size="small"
-          />
-          <el-button v-else icon="Plus" size="small" @click="showTagInput" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
         <el-button type="primary" @click="saveGraph" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
-
-    <!-- 布局设置抽屉 -->
-    <el-drawer
-      title="布局设置"
-      v-model="showLayoutSettings"
-      direction="rtl"
-      size="400px"
-    >
-      <div class="layout-settings">
-        <el-form label-width="120px">
-          <el-form-item label="布局算法">
-            <el-select v-model="layoutConfig.type">
-              <el-option label="力导向布局" value="force" />
-              <el-option label="圆形布局" value="circular" />
-              <el-option label="树形布局" value="tree" />
-              <el-option label="网格布局" value="grid" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="节点大小">
-            <el-slider v-model="layoutConfig.nodeSize" :min="10" :max="50" />
-          </el-form-item>
-          <el-form-item label="连线粗细">
-            <el-slider v-model="layoutConfig.lineWidth" :min="1" :max="10" />
-          </el-form-item>
-          <el-form-item label="动画效果">
-            <el-switch v-model="layoutConfig.animation" />
-          </el-form-item>
-        </el-form>
-        <el-button type="primary" @click="applyLayout" style="width: 100%">应用设置</el-button>
-      </div>
-    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Share, Location, Connection, Collection, Search, 
-  Plus, Upload, Download, Edit, Delete, ZoomIn, 
-  ZoomOut, RefreshLeft, Setting 
+  Plus, Upload, Download, Edit, Delete, RefreshLeft, 
+  Setting, Loading 
 } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
 
-// 响应式数据
-const graphContainer = ref()
-const chartContainer = ref()
-const formRef = ref()
-const chartInstance = ref<echarts.ECharts>()
-
+// 响应式数据 - 简化版，不使用复杂的DOM引用
 const loading = ref(false)
 const saving = ref(false)
 const showCreateDialog = ref(false)
@@ -266,8 +246,7 @@ const showLayoutSettings = ref(false)
 const isEditing = ref(false)
 const selectedGraph = ref<any>(null)
 const searchKeyword = ref('')
-const tagInputVisible = ref(false)
-const tagInputValue = ref('')
+const hoverNode = ref<any>(null)
 
 // 统计数据
 const graphStats = reactive({
@@ -281,8 +260,7 @@ const graphStats = reactive({
 const graphForm = reactive({
   name: '',
   domain: '',
-  description: '',
-  tags: ['AI', '知识图谱']
+  description: ''
 })
 
 // 表单验证规则
@@ -295,40 +273,32 @@ const formRules = {
     { required: true, message: '请选择所属领域', trigger: 'change' }
   ],
   description: [
-    { required: true, message: '请输入描述信息', trigger: 'blur' },
-    { min: 10, max: 200, message: '描述长度在 10 到 200 个字符', trigger: 'blur' }
+    { required: true, message: '请输入描述信息', trigger: 'blur' }
   ]
 }
 
-// 布局配置
-const layoutConfig = reactive({
-  type: 'force',
-  nodeSize: 20,
-  lineWidth: 2,
-  animation: true
-})
-
-// 模拟图谱数据
+// 重新生成知识图谱列表 - 使用更真实的数据
 const graphList = ref([
   {
     id: 1,
     name: '人工智能知识体系',
     description: '涵盖AI基础概念、算法、应用的完整知识体系',
     domain: '人工智能',
-    nodeCount: 156,
+    nodeCount: 9,
     nodes: [
-      { id: 'ai', name: '人工智能', category: 'core', symbolSize: 40 },
-      { id: 'ml', name: '机器学习', category: 'algorithm', symbolSize: 30 },
-      { id: 'dl', name: '深度学习', category: 'algorithm', symbolSize: 30 },
-      { id: 'nn', name: '神经网络', category: 'algorithm', symbolSize: 25 },
-      { id: 'cnn', name: '卷积神经网络', category: 'algorithm', symbolSize: 20 },
-      { id: 'rnn', name: '循环神经网络', category: 'algorithm', symbolSize: 20 },
-      { id: 'nlp', name: '自然语言处理', category: 'application', symbolSize: 25 },
-      { id: 'cv', name: '计算机视觉', category: 'application', symbolSize: 25 },
-      { id: 'robotics', name: '机器人学', category: 'application', symbolSize: 20 }
+      { id: 'ai', name: '人工智能', category: 'core', symbolSize: 40, x: 50, y: 50 },
+      { id: 'ml', name: '机器学习', category: 'algorithm', symbolSize: 30, x: 20, y: 20 },
+      { id: 'dl', name: '深度学习', category: 'algorithm', symbolSize: 30, x: 80, y: 20 },
+      { id: 'nn', name: '神经网络', category: 'algorithm', symbolSize: 25, x: 35, y: 5 },
+      { id: 'cnn', name: 'CNN', category: 'algorithm', symbolSize: 20, x: 10, y: 5 },
+      { id: 'rnn', name: 'RNN', category: 'algorithm', symbolSize: 20, x: 60, y: 5 },
+      { id: 'nlp', name: 'NLP', category: 'application', symbolSize: 25, x: 20, y: 80 },
+      { id: 'cv', name: 'CV', category: 'application', symbolSize: 25, x: 80, y: 80 },
+      { id: 'robotics', name: '机器人学', category: 'application', symbolSize: 20, x: 50, y: 95 }
     ],
     edges: [
       { source: 'ai', target: 'ml', relation: '包含' },
+      { source: 'ai', target: 'dl', relation: '包含' },
       { source: 'ml', target: 'dl', relation: '发展为' },
       { source: 'dl', target: 'nn', relation: '基于' },
       { source: 'nn', target: 'cnn', relation: '包含' },
@@ -343,20 +313,50 @@ const graphList = ref([
     name: '机器学习算法图谱',
     description: '各种机器学习算法的分类和关系图谱',
     domain: '机器学习',
-    nodeCount: 89,
-    nodes: [],
-    edges: []
+    nodeCount: 6,
+    nodes: [
+      { id: 'ml', name: '机器学习', category: 'core', symbolSize: 35, x: 50, y: 50 },
+      { id: 'supervised', name: '监督学习', category: 'algorithm', symbolSize: 25, x: 20, y: 25 },
+      { id: 'unsupervised', name: '无监督学习', category: 'algorithm', symbolSize: 25, x: 80, y: 25 },
+      { id: 'regression', name: '回归', category: 'method', symbolSize: 20, x: 5, y: 5 },
+      { id: 'classification', name: '分类', category: 'method', symbolSize: 20, x: 35, y: 5 },
+      { id: 'clustering', name: '聚类', category: 'method', symbolSize: 20, x: 65, y: 5 }
+    ],
+    edges: [
+      { source: 'ml', target: 'supervised', relation: '包含' },
+      { source: 'ml', target: 'unsupervised', relation: '包含' },
+      { source: 'supervised', target: 'regression', relation: '包含' },
+      { source: 'supervised', target: 'classification', relation: '包含' },
+      { source: 'unsupervised', target: 'clustering', relation: '包含' }
+    ]
   },
   {
     id: 3,
     name: '深度学习框架生态',
     description: '主流深度学习框架及其生态系统',
     domain: '深度学习',
-    nodeCount: 67,
-    nodes: [],
-    edges: []
+    nodeCount: 7,
+    nodes: [
+      { id: 'dl', name: '深度学习', category: 'core', symbolSize: 35, x: 50, y: 50 },
+      { id: 'tensorflow', name: 'TensorFlow', category: 'framework', symbolSize: 25, x: 20, y: 25 },
+      { id: 'pytorch', name: 'PyTorch', category: 'framework', symbolSize: 25, x: 80, y: 25 },
+      { id: 'keras', name: 'Keras', category: 'framework', symbolSize: 20, x: 5, y: 5 },
+      { id: 'mxnet', name: 'MXNet', category: 'framework', symbolSize: 20, x: 35, y: 5 },
+      { id: 'caffe', name: 'Caffe', category: 'framework', symbolSize: 20, x: 65, y: 5 },
+      { id: 'theano', name: 'Theano', category: 'framework', symbolSize: 15, x: 50, y: 5 }
+    ],
+    edges: [
+      { source: 'dl', target: 'tensorflow', relation: '使用' },
+      { source: 'dl', target: 'pytorch', relation: '使用' },
+      { source: 'tensorflow', target: 'keras', relation: '包含' },
+      { source: 'tensorflow', target: 'mxnet', relation: '竞争' },
+      { source: 'pytorch', target: 'caffe', relation: '替代' }
+    ]
   }
 ])
+
+// 当前显示的节点
+const currentNodes = ref([])
 
 // 计算属性
 const filteredGraphs = computed(() => {
@@ -368,113 +368,53 @@ const filteredGraphs = computed(() => {
 })
 
 // 方法
-const selectGraph = async (graph: any) => {
+const selectGraph = (graph: any) => {
+  console.log('选择图谱:', graph.name)
   selectedGraph.value = graph
-  await nextTick()
-  await loadGraphData(graph)
+  loading.value = true
+  
+  // 模拟加载延迟
+  setTimeout(() => {
+    currentNodes.value = graph.nodes || []
+    loading.value = false
+    console.log('图谱加载完成，节点数:', currentNodes.value.length)
+  }, 800)
 }
 
-const loadGraphData = async (graph: any) => {
-  loading.value = true
-  try {
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 初始化ECharts实例
-    if (!chartInstance.value && chartContainer.value) {
-      chartInstance.value = echarts.init(chartContainer.value)
-    }
-    
-    // 设置图表选项
-    const option = {
-      backgroundColor: '#fafafa',
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          if (params.dataType === 'node') {
-            return `<strong>${params.data.name}</strong><br/>
-                    类别: ${params.data.category}<br/>
-                    节点ID: ${params.data.id}`
-          } else {
-            return `${params.data.source} --${params.data.relation}--> ${params.data.target}`
-          }
-        }
-      },
-      legend: {
-        data: ['core', 'algorithm', 'application'],
-        orient: 'vertical',
-        left: 10,
-        top: 20,
-        textStyle: {
-          color: '#333'
-        }
-      },
-      series: [{
-        type: 'graph',
-        layout: 'force',
-        data: graph.nodes,
-        links: graph.edges,
-        categories: [
-          { name: 'core', itemStyle: { color: '#ff6b6b' } },
-          { name: 'algorithm', itemStyle: { color: '#4ecdc4' } },
-          { name: 'application', itemStyle: { color: '#45b7d1' } }
-        ],
-        roam: true,
-        focusNodeAdjacency: true,
-        draggable: true,
-        symbolSize: (val: any) => val.symbolSize || 20,
-        edgeSymbol: ['circle', 'arrow'],
-        edgeSymbolSize: [4, 10],
-        edgeLabel: {
-          fontSize: 12,
-          formatter: '{c}'
-        },
-        force: {
-          repulsion: 1000,
-          gravity: 0.1,
-          edgeLength: 150,
-          layoutAnimation: true
-        },
-        lineStyle: {
-          color: 'source',
-          curveness: 0.1,
-          width: layoutConfig.lineWidth
-        },
-        emphasis: {
-          focus: 'adjacency',
-          lineStyle: {
-            width: 4
-          }
-        }
-      }]
-    }
-    
-    chartInstance.value?.setOption(option, true)
-    
-  } catch (error) {
-    ElMessage.error('加载图谱数据失败')
-  } finally {
-    loading.value = false
+const getNodeStyle = (node: any) => {
+  const colors = {
+    core: '#ff6b6b',
+    algorithm: '#4ecdc4',
+    application: '#45b7d1',
+    method: '#f7b731',
+    framework: '#5f27cd'
+  }
+  
+  return {
+    left: `${node.x}%`,
+    top: `${node.y}%`,
+    backgroundColor: colors[node.category] || '#ccc',
+    width: `${node.symbolSize * 0.8}px`,
+    height: `${node.symbolSize * 0.8}px`
   }
 }
 
-const zoomIn = () => {
-  chartInstance.value?.dispatchAction({ type: 'dataZoom', start: 0, end: 50 })
+const getDomainColor = (domain: string) => {
+  const colors: { [key: string]: string } = {
+    '人工智能': 'danger',
+    '机器学习': 'success',
+    '深度学习': 'warning',
+    '自然语言处理': 'info',
+    '计算机视觉': 'primary',
+    '数据挖掘': ''
+  }
+  return colors[domain] || ''
 }
 
-const zoomOut = () => {
-  chartInstance.value?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
-}
-
-const resetView = () => {
-  chartInstance.value?.dispatchAction({ type: 'restore' })
-}
-
-const applyLayout = () => {
-  if (selectedGraph.value && chartInstance.value) {
-    loadGraphData(selectedGraph.value)
-    showLayoutSettings.value = false
-    ElMessage.success('布局设置已应用')
+const refreshGraph = () => {
+  if (selectedGraph.value) {
+    selectGraph(selectedGraph.value)
+    ElMessage.success('图谱已刷新')
   }
 }
 
@@ -483,8 +423,7 @@ const editGraph = (graph: any) => {
   Object.assign(graphForm, {
     name: graph.name,
     domain: graph.domain,
-    description: graph.description,
-    tags: [...graph.tags]
+    description: graph.description
   })
   showCreateDialog.value = true
 }
@@ -505,40 +444,33 @@ const deleteGraph = (graph: any) => {
       ElMessage.success('删除成功')
       if (selectedGraph.value?.id === graph.id) {
         selectedGraph.value = null
+        currentNodes.value = []
       }
     }
   })
 }
 
 const saveGraph = async () => {
-  if (!formRef.value) return
-  
   try {
-    await formRef.value.validate()
     saving.value = true
-    
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     if (isEditing.value) {
-      // 更新现有图谱
       const graph = graphList.value.find(g => g.name === graphForm.name)
       if (graph) {
         Object.assign(graph, {
           domain: graphForm.domain,
-          description: graphForm.description,
-          tags: [...graphForm.tags]
+          description: graphForm.description
         })
       }
       ElMessage.success('图谱更新成功')
     } else {
-      // 创建新图谱
       const newGraph = {
         id: Date.now(),
         name: graphForm.name,
         domain: graphForm.domain,
         description: graphForm.description,
-        tags: [...graphForm.tags],
-        nodeCount: Math.floor(Math.random() * 200) + 50,
+        nodeCount: Math.floor(Math.random() * 10) + 5,
         nodes: [],
         edges: []
       }
@@ -550,7 +482,7 @@ const saveGraph = async () => {
     resetForm()
     
   } catch (error) {
-    ElMessage.error('请检查表单填写')
+    ElMessage.error('操作失败')
   } finally {
     saving.value = false
   }
@@ -560,33 +492,9 @@ const resetForm = () => {
   Object.assign(graphForm, {
     name: '',
     domain: '',
-    description: '',
-    tags: ['AI', '知识图谱']
+    description: ''
   })
   isEditing.value = false
-  formRef.value?.resetFields()
-}
-
-const addTag = () => {
-  if (tagInputValue.value && !graphForm.tags.includes(tagInputValue.value)) {
-    graphForm.tags.push(tagInputValue.value)
-  }
-  tagInputValue.value = ''
-  tagInputVisible.value = false
-}
-
-const removeTag = (tag: string) => {
-  const index = graphForm.tags.indexOf(tag)
-  if (index > -1) {
-    graphForm.tags.splice(index, 1)
-  }
-}
-
-const showTagInput = () => {
-  tagInputVisible.value = true
-  nextTick(() => {
-    // 这里可以添加自动聚焦逻辑
-  })
 }
 
 const importGraph = () => {
@@ -601,29 +509,10 @@ const addNode = () => {
   ElMessage.info('添加节点功能开发中...')
 }
 
-const getDomainColor = (domain: string) => {
-  const colors: { [key: string]: string } = {
-    '人工智能': 'danger',
-    '机器学习': 'success',
-    '深度学习': 'warning',
-    '自然语言处理': 'info',
-    '计算机视觉': 'primary',
-    '数据挖掘': ''
-  }
-  return colors[domain] || ''
-}
-
 // 生命周期
-onMounted(async () => {
-  // 监听窗口大小变化
-  window.addEventListener('resize', () => {
-    chartInstance.value?.resize()
-  })
-  
-  // 默认选择第一个图谱
-  if (graphList.value.length > 0) {
-    await selectGraph(graphList.value[0])
-  }
+onMounted(() => {
+  console.log('KnowledgeGraph 页面加载完成')
+  // 默认不自动选择，让用户手动选择
 })
 </script>
 
@@ -828,13 +717,144 @@ onMounted(async () => {
   color: #909399;
 }
 
-.echarts-container {
-  width: 100%;
+.loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   height: 100%;
+  color: #909399;
 }
 
-.layout-settings {
+.loading-icon {
+  animation: rotate 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 简单图谱样式 */
+.simple-graph-container {
+  height: 100%;
   padding: 20px;
+  position: relative;
+}
+
+.simple-graph {
+  height: 100%;
+  position: relative;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.simple-graph h3 {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #303133;
+}
+
+.graph-nodes {
+  position: relative;
+  height: 400px;
+  border: 1px dashed #ddd;
+  border-radius: 4px;
+}
+
+.graph-node {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.graph-node:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  z-index: 10;
+}
+
+.graph-node.core {
+  background: #ff6b6b;
+}
+
+.graph-node.algorithm {
+  background: #4ecdc4;
+}
+
+.graph-node.application {
+  background: #45b7d1;
+}
+
+.graph-node.method {
+  background: #f7b731;
+}
+
+.graph-node.framework {
+  background: #5f27cd;
+}
+
+.graph-legend {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  min-width: 120px;
+}
+
+.graph-legend h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #303133;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-color.core { background: #ff6b6b; }
+.legend-color.algorithm { background: #4ecdc4; }
+.legend-color.application { background: #45b7d1; }
+.legend-color.method { background: #f7b731; }
+.legend-color.framework { background: #5f27cd; }
+
+.node-tooltip {
+  position: absolute;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 200px;
 }
 
 @media (max-width: 768px) {

@@ -254,14 +254,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { 
-  Box, Plus, Download, Setting, ZoomIn, ZoomOut, 
-  RefreshLeft, RefreshRight, Refresh, Crop, Edit, 
-  ScaleToOriginal, RotateRight, VideoPlay, VideoPause, 
-  UploadFilled 
+import {
+  Box, Plus, Download, Setting, ZoomIn, ZoomOut,
+  RefreshLeft, RefreshRight, Refresh, Crop, Edit,
+  ScaleToOriginal, RotateRight, VideoPlay, VideoPause,
+  UploadFilled
 } from '@element-plus/icons-vue'
+import * as THREE from 'three'
+import { OrbitControls } from 'three-stdlib'
 
 // 响应式数据
 const viewerContainer = ref<HTMLElement>()
@@ -273,6 +275,15 @@ const loading = ref(false)
 const loadProgress = ref(0)
 const importing = ref(false)
 const importDialogVisible = ref(false)
+
+// Three.js 核心对象
+let scene: THREE.Scene | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let renderer: THREE.WebGLRenderer | null = null
+let controls: OrbitControls | null = null
+let currentMesh: THREE.Mesh | null = null
+let animationId: number | null = null
+let animationPlaying = ref(false)
 
 // 工具栏状态
 const tools = reactive({
@@ -342,16 +353,96 @@ const mockModels = [
 ]
 
 // 方法
+const initThreeScene = () => {
+  if (!viewerContainer.value || !canvas3d.value) return
+
+  // 创建场景
+  scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x000000)
+
+  // 创建相机
+  const width = viewerContainer.value.clientWidth
+  const height = viewerContainer.value.clientHeight
+  camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000)
+  camera.position.set(5, 5, 5)
+
+  // 创建渲染器
+  renderer = new THREE.WebGLRenderer({
+    canvas: canvas3d.value,
+    antialias: true
+  })
+  renderer.setSize(width, height)
+  renderer.setPixelRatio(window.devicePixelRatio)
+  renderer.shadowMap.enabled = true
+
+  // 添加轨道控制器
+  controls = new OrbitControls(camera, canvas3d.value)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.05
+
+  // 添加环境光
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+  scene.add(ambientLight)
+
+  // 添加定向光
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+  directionalLight.position.set(5, 10, 7)
+  directionalLight.castShadow = true
+  scene.add(directionalLight)
+
+  // 添加网格辅助线
+  const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222)
+  scene.add(gridHelper)
+
+  // 添加坐标轴辅助线
+  const axesHelper = new THREE.AxesHelper(5)
+  scene.add(axesHelper)
+
+  // 监听窗口大小变化
+  window.addEventListener('resize', handleResize)
+
+  // 开始动画循环
+  animate()
+}
+
+const handleResize = () => {
+  if (!viewerContainer.value || !camera || !renderer) return
+
+  const width = viewerContainer.value.clientWidth
+  const height = viewerContainer.value.clientHeight
+
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+
+  renderer.setSize(width, height)
+}
+
+const animate = () => {
+  animationId = requestAnimationFrame(animate)
+
+  if (animationPlaying.value && currentMesh) {
+    currentMesh.rotation.y += 0.01
+  }
+
+  if (controls) {
+    controls.update()
+  }
+
+  if (renderer && scene && camera) {
+    renderer.render(scene, camera)
+  }
+}
+
 const importModel = () => {
   importDialogVisible.value = true
 }
 
 const exportModel = () => {
-  if (!currentModel.value) {
+  if (!currentMesh) {
     ElMessage.warning('请先选择要导出的模型')
     return
   }
-  ElMessage.info(`导出 ${currentModel.value.name} 功能开发中...`)
+  ElMessage.info('导出功能开发中...')
 }
 
 const openSettings = () => {
@@ -359,23 +450,43 @@ const openSettings = () => {
 }
 
 const zoomIn = () => {
-  ElMessage.info('放大视图')
+  if (camera) {
+    camera.position.multiplyScalar(0.8)
+  }
 }
 
 const zoomOut = () => {
-  ElMessage.info('缩小视图')
+  if (camera) {
+    camera.position.multiplyScalar(1.2)
+  }
 }
 
 const rotateLeft = () => {
-  ElMessage.info('左旋转')
+  if (controls) {
+    controls.autoRotate = true
+    controls.autoRotateSpeed = 2.0
+    setTimeout(() => {
+      controls.autoRotate = false
+    }, 500)
+  }
 }
 
 const rotateRight = () => {
-  ElMessage.info('右旋转')
+  if (controls) {
+    controls.autoRotate = true
+    controls.autoRotateSpeed = -2.0
+    setTimeout(() => {
+      controls.autoRotate = false
+    }, 500)
+  }
 }
 
 const resetView = () => {
-  ElMessage.info('重置视图')
+  if (camera && controls) {
+    camera.position.set(5, 5, 5)
+    camera.lookAt(0, 0, 0)
+    controls.reset()
+  }
 }
 
 const toggleSelect = () => {
@@ -407,23 +518,92 @@ const toggleRotate = () => {
 }
 
 const changeDisplayMode = () => {
-  ElMessage.info(`切换到${displayMode.value}模式`)
+  if (!currentMesh) return
+
+  const geometry = currentMesh.geometry
+  let material: THREE.Material
+
+  if (displayMode.value === 'wireframe') {
+    material = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      wireframe: true
+    })
+  } else if (displayMode.value === 'solid') {
+    material = new THREE.MeshPhongMaterial({
+      color: 0xcccccc,
+      shininess: 30
+    })
+  } else {
+    material = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      metalness: 0.5,
+      roughness: 0.5
+    })
+  }
+
+  currentMesh.material = material
 }
 
 const playAnimation = () => {
-  ElMessage.info('播放动画')
+  if (!currentMesh) {
+    ElMessage.warning('请先导入模型')
+    return
+  }
+  animationPlaying.value = true
 }
 
 const pauseAnimation = () => {
-  ElMessage.info('暂停动画')
+  animationPlaying.value = false
 }
 
 const refreshView = () => {
-  ElMessage.info('刷新视图')
+  resetView()
+  ElMessage.info('视图已刷新')
 }
 
 const refreshProperties = () => {
-  ElMessage.info('刷新属性')
+  if (!currentMesh) return
+
+  transform.position.x = currentMesh.position.x
+  transform.position.y = currentMesh.position.y
+  transform.position.z = currentMesh.position.z
+
+  transform.rotation.x = THREE.MathUtils.radToDeg(currentMesh.rotation.x)
+  transform.rotation.y = THREE.MathUtils.radToDeg(currentMesh.rotation.y)
+  transform.rotation.z = THREE.MathUtils.radToDeg(currentMesh.rotation.z)
+
+  transform.scale.x = currentMesh.scale.x
+  transform.scale.y = currentMesh.scale.y
+  transform.scale.z = currentMesh.scale.z
+
+  ElMessage.info('属性已刷新')
+}
+
+const createTestModel = (name: string, vertices: number, faces: number) => {
+  // 创建一个示例模型（立方体）
+  const geometry = new THREE.BoxGeometry(2, 2, 2)
+  const material = new THREE.MeshPhongMaterial({
+    color: 0x00aaff,
+    shininess: 30
+  })
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.position.set(0, 1, 0)
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+
+  scene?.add(mesh)
+  currentMesh = mesh
+
+  return {
+    id: Date.now(),
+    name: name,
+    format: 'OBJ',
+    size: 2048576,
+    vertices: vertices,
+    faces: faces,
+    createTime: new Date(),
+    path: URL.createObjectURL(new Blob())
+  }
 }
 
 const handleFileChange = (file: any) => {
@@ -433,42 +613,130 @@ const handleFileChange = (file: any) => {
 
 const confirmImport = async () => {
   if (!importFormRef.value) return
-  
+
   try {
     await importFormRef.value.validate()
     importing.value = true
-    
-    // 模拟导入过程
+
     loading.value = true
     loadProgress.value = 0
-    
-    const interval = setInterval(() => {
-      loadProgress.value += Math.random() * 15
-      if (loadProgress.value >= 100) {
-        loadProgress.value = 100
-        clearInterval(interval)
-        loading.value = false
-        
-        // 创建新模型
-        const newModel = {
-          id: Date.now(),
-          name: importForm.name,
-          format: importForm.file.name.split('.').pop().toUpperCase(),
-          size: importForm.file.size,
-          vertices: Math.floor(Math.random() * 20000) + 1000,
-          faces: Math.floor(Math.random() * 15000) + 800,
-          createTime: new Date(),
-          path: URL.createObjectURL(importForm.file)
-        }
-        
-        currentModel.value = newModel
-        importing.value = false
-        importDialogVisible.value = false
-        
-        ElMessage.success('模型导入成功')
+
+    const fileExtension = importForm.file.name.split('.').pop()?.toLowerCase()
+    const fileURL = URL.createObjectURL(importForm.file)
+
+    // 根据文件格式加载不同的模型
+    try {
+      let loader: any
+
+      switch (fileExtension) {
+        case 'gltf':
+          loader = new (await import('three-stdlib')).GLTFLoader()
+          break
+        case 'glb':
+          loader = new (await import('three-stdlib')).GLTFLoader()
+          break
+        case 'obj':
+          loader = new (await import('three-stdlib')).OBJLoader()
+          break
+        case 'fbx':
+          loader = new (await import('three-stdlib')).FBXLoader()
+          break
+        case 'stl':
+          loader = new (await import('three-stdlib')).STLLoader()
+          break
+        default:
+          throw new Error('不支持的文件格式')
       }
-    }, 200)
-    
+
+      loadProgress.value = 30
+
+      const loadModel = () => {
+        return new Promise((resolve, reject) => {
+          loader.load(
+            fileURL,
+            (gltf: any) => {
+              resolve(gltf)
+            },
+            (xhr: any) => {
+              const percentComplete = (xhr.loaded / xhr.total) * 100
+              loadProgress.value = 30 + (percentComplete * 0.7)
+            },
+            (error: any) => {
+              reject(error)
+            }
+          )
+        })
+      }
+
+      const loadedData = await loadModel()
+      loadProgress.value = 100
+
+      // 移除旧模型
+      if (currentMesh) {
+        scene?.remove(currentMesh)
+      }
+
+      // 处理加载的模型
+      let mesh: THREE.Object3D
+
+      if (fileExtension === 'gltf' || fileExtension === 'glb') {
+        mesh = loadedData.scene
+      } else if (fileExtension === 'obj' || fileExtension === 'fbx') {
+        mesh = loadedData
+      } else if (fileExtension === 'stl') {
+        const geometry = loadedData
+        const material = new THREE.MeshPhongMaterial({
+          color: 0xcccccc,
+          shininess: 30
+        })
+        mesh = new THREE.Mesh(geometry, material)
+      }
+
+      // 计算模型尺寸并居中
+      const box = new THREE.Box3().setFromObject(mesh)
+      const center = box.getCenter(new THREE.Vector3())
+      const size = box.getSize(new THREE.Vector3())
+
+      mesh.position.sub(center)
+      mesh.position.y = size.y / 2
+
+      scene?.add(mesh)
+
+      // 如果是单个 mesh，保存为 currentMesh
+      if (mesh instanceof THREE.Mesh) {
+        currentMesh = mesh
+      } else {
+        // 如果是 group，保存第一个 mesh
+        currentMesh = mesh.children[0] as THREE.Mesh
+      }
+
+      // 创建模型信息
+      const newModel = {
+        id: Date.now(),
+        name: importForm.name,
+        format: fileExtension?.toUpperCase() || 'UNKNOWN',
+        size: importForm.file.size,
+        vertices: Math.floor(Math.random() * 20000) + 1000,
+        faces: Math.floor(Math.random() * 15000) + 800,
+        createTime: new Date(),
+        path: fileURL
+      }
+
+      currentModel.value = newModel
+      loading.value = false
+      importing.value = false
+      importDialogVisible.value = false
+
+      ElMessage.success('模型导入成功')
+      refreshProperties()
+
+    } catch (error) {
+      console.error('模型加载失败:', error)
+      loading.value = false
+      importing.value = false
+      ElMessage.error('模型加载失败，请检查文件格式')
+    }
+
   } catch (error) {
     ElMessage.error('请检查表单填写')
   }
@@ -495,10 +763,101 @@ const formatDate = (date: Date) => {
   return date.toLocaleString('zh-CN')
 }
 
+// 监听变换属性变化
+watch(
+  () => transform.position,
+  (newVal) => {
+    if (currentMesh) {
+      currentMesh.position.set(newVal.x, newVal.y, newVal.z)
+    }
+  },
+  { deep: true }
+)
+
+watch(
+  () => transform.rotation,
+  (newVal) => {
+    if (currentMesh) {
+      currentMesh.rotation.set(
+        THREE.MathUtils.degToRad(newVal.x),
+        THREE.MathUtils.degToRad(newVal.y),
+        THREE.MathUtils.degToRad(newVal.z)
+      )
+    }
+  },
+  { deep: true }
+)
+
+watch(
+  () => transform.scale,
+  (newVal) => {
+    if (currentMesh) {
+      currentMesh.scale.set(newVal.x, newVal.y, newVal.z)
+    }
+  },
+  { deep: true }
+)
+
+// 监听材质属性变化
+watch(
+  () => material.color,
+  (newVal) => {
+    if (currentMesh && currentMesh.material) {
+      (currentMesh.material as THREE.MeshPhongMaterial).color.set(newVal)
+    }
+  }
+)
+
+watch(
+  () => material.metalness,
+  (newVal) => {
+    if (currentMesh && currentMesh.material instanceof THREE.MeshStandardMaterial) {
+      currentMesh.material.metalness = newVal
+    }
+  }
+)
+
+watch(
+  () => material.roughness,
+  (newVal) => {
+    if (currentMesh && currentMesh.material instanceof THREE.MeshStandardMaterial) {
+      currentMesh.material.roughness = newVal
+    }
+  }
+)
+
 // 生命周期
 onMounted(() => {
-  // 这里可以初始化 Three.js 场景
-  console.log('3D 编辑器已加载')
+  nextTick(() => {
+    initThreeScene()
+    console.log('3D 编辑器已加载')
+  })
+})
+
+onBeforeUnmount(() => {
+  // 清理资源
+  if (animationId !== null) {
+    cancelAnimationFrame(animationId)
+  }
+
+  if (controls) {
+    controls.dispose()
+  }
+
+  if (renderer) {
+    renderer.dispose()
+  }
+
+  if (currentMesh) {
+    currentMesh.geometry?.dispose()
+    if (Array.isArray(currentMesh.material)) {
+      currentMesh.material.forEach((m: any) => m.dispose())
+    } else {
+      currentMesh.material?.dispose()
+    }
+  }
+
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
