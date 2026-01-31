@@ -85,3 +85,14 @@ export function ImportExcel() {
         method: 'post',
     });
 }
+
+/**
+ * 文本翻译
+ */
+export function Translate(data: { text: string; source_lang: string; target_lang: string }) {
+    return request({
+        url: apiPrefix + 'translate/',
+        method: 'post',
+        data: data,
+    });
+}

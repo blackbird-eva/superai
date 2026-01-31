@@ -331,6 +331,7 @@ import {
   CopyDocument, Download, ChatDotRound, Delete,
   Upload, View
 } from '@element-plus/icons-vue'
+import { Translate } from './api'
 
 // 翻译模式
 const activeMode = ref('text')
@@ -497,41 +498,40 @@ const translate = async () => {
 
   translating.value = true
 
-  // 模拟翻译延迟
-  await new Promise(resolve => setTimeout(resolve, 1500))
+  try {
+    const actualSourceLang = sourceLang.value === 'auto' ? detectedLang.value : sourceLang.value
 
-  // 模拟翻译结果
-  const actualSourceLang = sourceLang.value === 'auto' ? detectedLang.value : sourceLang.value
-  const key = `${actualSourceLang}->${targetLang.value}`
+    // 调用后端翻译API
+    const response = await Translate({
+      text: inputText.value,
+      source_lang: actualSourceLang,
+      target_lang: targetLang.value
+    })
 
-  if (mockTranslations[key]) {
-    const lowerText = inputText.value.toLowerCase()
-    let translated = ''
-    for (const [src, tgt] of Object.entries(mockTranslations[key])) {
-      if (lowerText.includes(src)) {
-        translated = inputText.value.replace(new RegExp(src, 'gi'), tgt)
-        break
+    if (response && response.data) {
+      outputText.value = response.data.translated_text
+
+      // 保存到历史
+      history.value.unshift({
+        source: inputText.value,
+        target: outputText.value,
+        sourceLang: languageMap[actualSourceLang] || languageMap[sourceLang.value],
+        targetLang: languageMap[targetLang.value]
+      })
+
+      // 限制历史记录数量
+      if (history.value.length > 20) {
+        history.value = history.value.slice(0, 20)
       }
+    } else {
+      ElMessage.error('翻译失败，请重试')
     }
-    outputText.value = translated || `[模拟翻译] ${inputText.value} (${languageMap[targetLang.value]})`
-  } else {
-    outputText.value = `[模拟翻译] ${inputText.value} (${languageMap[targetLang.value]})`
+  } catch (error: any) {
+    console.error('翻译错误:', error)
+    ElMessage.error(error.message || '翻译失败，请重试')
+  } finally {
+    translating.value = false
   }
-
-  // 保存到历史
-  history.value.unshift({
-    source: inputText.value,
-    target: outputText.value,
-    sourceLang: languageMap[actualSourceLang] || languageMap[sourceLang.value],
-    targetLang: languageMap[targetLang.value]
-  })
-
-  // 限制历史记录数量
-  if (history.value.length > 20) {
-    history.value = history.value.slice(0, 20)
-  }
-
-  translating.value = false
 }
 
 // 交换语言
