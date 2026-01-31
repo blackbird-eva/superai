@@ -9,3 +9,4 @@ web/package-lock.json
 *.bat
 backend/data.xlsx
 package-lock.json
+output.log

@@ -212,7 +212,7 @@ const setMenuFormData = () => {
 };
 
 const querySearch = (queryString: string, cb: any) => {
-	const files: any = import.meta.glob('@views/**/*.vue');
+	const files: any = import.meta.glob('../../../**/*.vue');
 	let fileLists: Array<any> = [];
 	Object.keys(files).forEach((queryString: string) => {
 		fileLists.push({
