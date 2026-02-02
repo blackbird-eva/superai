@@ -1,14 +1,14 @@
 <template>
   <div class="ppt-material-center">
     <!-- 专业头部 -->
-    <div class="header">
-      <div class="header-content">
-        <h2 class="title">
-          <el-icon class="title-icon"><Picture /></el-icon>
-          PPT素材中心
-        </h2>
-        <p class="subtitle">专业的演示文稿素材库，助力精彩演讲</p>
-      </div>
+  <div class="header">
+    <div class="header-content">
+      <h2 class="title">
+        <el-icon class="title-icon"><Document /></el-icon>
+        PPT模板中心
+      </h2>
+      <p class="subtitle">专业的PPT模板与初始模板库，快速创建精美演示文稿</p>
+    </div>
       <div class="header-stats">
         <div class="quick-stat">
           <span class="number">{{ totalMaterials }}</span>
@@ -22,7 +22,7 @@
       <div class="search-section">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索PPT素材..."
+          placeholder="搜索PPT模板..."
           prefix-icon="Search"
           clearable
           class="search-input"
@@ -37,17 +37,17 @@
       <div class="filter-section">
         <el-select 
           v-model="categoryFilter" 
-          placeholder="素材分类" 
+          placeholder="模板分类" 
           clearable 
           @change="handleFilter"
           class="category-filter"
         >
           <el-option label="全部分类" value=""></el-option>
-          <el-option label="模板背景" value="template"></el-option>
-          <el-option label="图标素材" value="icon"></el-option>
-          <el-option label="图表图形" value="chart"></el-option>
-          <el-option label="图片素材" value="image"></el-option>
-          <el-option label="字体样式" value="font"></el-option>
+          <el-option label="初始模板" value="initial"></el-option>
+          <el-option label="商务模板" value="business"></el-option>
+          <el-option label="教育模板" value="education"></el-option>
+          <el-option label="创意模板" value="creative"></el-option>
+          <el-option label="数据图表" value="data"></el-option>
         </el-select>
         
         <el-select 
@@ -68,10 +68,10 @@
       
       <div class="action-section">
         <el-button type="primary" icon="Plus" @click="showUploadDialog = true">
-          上传素材
+          上传模板
         </el-button>
         <el-button icon="FolderOpened" @click="showCollections = true">
-          我的收藏
+          我的模板
         </el-button>
       </div>
     </div>
@@ -113,16 +113,19 @@
                 </el-button>
               </div>
             </div>
-            <div class="featured-info">
-              <h4>{{ item.name }}</h4>
-              <p>{{ item.description }}</p>
-              <div class="featured-meta">
-                <span class="downloads">下载 {{ item.downloads }} 次</span>
-                <el-tag size="small" :type="item.isPremium ? 'warning' : 'success'">
-                  {{ item.isPremium ? '高级' : '免费' }}
-                </el-tag>
-              </div>
-            </div>
+    <div class="featured-info">
+      <h4>{{ item.name }}</h4>
+      <p>{{ item.description }}</p>
+      <div class="featured-meta">
+        <span class="downloads">下载 {{ item.downloads }} 次</span>
+        <el-tag size="small" :type="item.isPremium ? 'warning' : 'success'">
+          {{ item.isPremium ? '高级' : '免费' }}
+        </el-tag>
+        <el-tag size="small" type="info">
+          {{ item.slideCount }}页
+        </el-tag>
+      </div>
+    </div>
           </div>
         </div>
       </div>
@@ -151,30 +154,28 @@
             :class="{ premium: item.isPremium, favorite: item.isFavorite }"
             @click="previewMaterial(item)"
           >
-            <!-- 素材缩略图 -->
-            <div class="material-thumb">
-              <img v-if="item.type === 'image'" :src="item.thumbnail" :alt="item.name" />
-              <div v-else-if="item.type === 'template'" class="template-thumb">
-                <div class="template-preview" :style="{ background: item.previewStyle }"></div>
-              </div>
-              <div v-else-if="item.type === 'icon'" class="icon-thumb">
-                <div class="icon-preview" :style="{ color: item.color }">
-                  <el-icon><component :is="item.icon" /></el-icon>
-                </div>
-              </div>
+        <!-- 素材缩略图 -->
+        <div class="material-thumb">
+          <img v-if="item.type === 'image'" :src="item.thumbnail" :alt="item.name" />
+          <div v-else class="template-thumb">
+            <div class="template-preview" :style="{ background: item.previewStyle }"></div>
+          </div>
               
-              <!-- 素材标记 -->
-              <div class="material-badges">
-                <el-tag v-if="item.isPremium" size="small" type="warning" class="premium-badge">高级</el-tag>
-                <el-tag v-if="item.isNew" size="small" type="success" class="new-badge">NEW</el-tag>
-                <el-button 
-                  :icon="item.isFavorite ? StarFilled : Star"
-                  size="small" 
-                  text 
-                  class="favorite-btn"
-                  @click.stop="toggleFavorite(item)"
-                />
-              </div>
+      <!-- 素材标记 -->
+      <div class="material-badges">
+        <el-tag v-if="item.isPremium" size="small" type="warning" class="premium-badge">高级</el-tag>
+        <el-tag v-if="item.isNew" size="small" type="success" class="new-badge">NEW</el-tag>
+        <el-tag size="small" type="info" class="slide-badge">
+          {{ item.slideCount }}页
+        </el-tag>
+        <el-button 
+          :icon="item.isFavorite ? StarFilled : Star"
+          size="small" 
+          text 
+          class="favorite-btn"
+          @click.stop="toggleFavorite(item)"
+        />
+      </div>
             </div>
 
             <!-- 素材信息 -->
@@ -275,11 +276,12 @@
         </div>
         <div class="preview-sidebar">
           <h4>素材信息</h4>
-          <p><strong>分类：</strong>{{ getCategoryText(previewMaterialData.category) }}</p>
-          <p><strong>尺寸：</strong>{{ previewMaterialData.dimensions }}</p>
-          <p><strong>大小：</strong>{{ previewMaterialData.size }}</p>
-          <p><strong>格式：</strong>{{ previewMaterialData.format }}</p>
-          <p><strong>描述：</strong>{{ previewMaterialData.description }}</p>
+    <p><strong>分类：</strong>{{ getCategoryText(previewMaterialData.category) }}</p>
+    <p><strong>尺寸：</strong>{{ previewMaterialData.dimensions }}</p>
+    <p><strong>大小：</strong>{{ previewMaterialData.size }}</p>
+    <p><strong>格式：</strong>{{ previewMaterialData.format }}</p>
+    <p><strong>页数：</strong>{{ previewMaterialData.slideCount }}页</p>
+    <p><strong>描述：</strong>{{ previewMaterialData.description }}</p>
           
           <div class="preview-actions">
             <el-button type="primary" size="large" @click="downloadMaterial(previewMaterialData)">
@@ -307,9 +309,9 @@
       >
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">将素材文件拖到此处，或<em>点击上传</em></div>
-        <div class="el-upload__tip">
-          支持 PNG、JPG、SVG、PPT、PPTX、EPS 格式，单个文件不超过 10MB
-        </div>
+    <div class="el-upload__tip">
+      支持 PPT、PPTX 格式模板文件，单个文件不超过 20MB
+    </div>
       </el-upload>
       
       <el-form :model="uploadForm" label-width="80px" style="margin-top: 20px;">
@@ -318,10 +320,11 @@
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="uploadForm.category" placeholder="选择分类">
-            <el-option label="模板背景" value="template"></el-option>
-            <el-option label="图标素材" value="icon"></el-option>
-            <el-option label="图表图形" value="chart"></el-option>
-            <el-option label="图片素材" value="image"></el-option>
+            <el-option label="初始模板" value="initial"></el-option>
+            <el-option label="商务模板" value="business"></el-option>
+            <el-option label="教育模板" value="education"></el-option>
+            <el-option label="创意模板" value="creative"></el-option>
+            <el-option label="数据图表" value="data"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="描述">
@@ -348,8 +351,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Picture, Search, Plus, FolderOpened, Star, StarFilled,
   Grid, List, Download, UploadFilled, 
-  Brush, PictureFilled, DataAnalysis, FontSizes, 
-  VideoPlay, Document, CollectionTag
+  Brush, Briefcase, School, Document, DataAnalysis, 
+  CollectionTag
 } from '@element-plus/icons-vue'
 
 // 素材接口定义
@@ -357,8 +360,8 @@ interface MaterialItem {
   id: string
   name: string
   description: string
-  category: 'template' | 'icon' | 'chart' | 'image' | 'font'
-  type: 'image' | 'template' | 'icon'
+  category: 'initial' | 'business' | 'education' | 'creative' | 'data'
+  type: 'ppt' | 'template'
   thumbnail: string
   url: string
   size: string
@@ -368,9 +371,8 @@ interface MaterialItem {
   isPremium: boolean
   isNew: boolean
   isFavorite: boolean
-  color?: string
-  icon?: string
   previewStyle?: string
+  slideCount?: number
 }
 
 // 响应式数据
@@ -395,125 +397,130 @@ const uploadForm = reactive({
 
 // 分类数据
 const categories = ref([
-  { key: 'all', name: '全部素材', icon: 'Grid', count: 156 },
-  { key: 'template', name: '模板背景', icon: 'Brush', count: 42 },
-  { key: 'icon', name: '图标素材', icon: 'PictureFilled', count: 38 },
-  { key: 'chart', name: '图表图形', icon: 'DataAnalysis', count: 28 },
-  { key: 'image', name: '图片素材', icon: 'Picture', count: 35 },
-  { key: 'font', name: '字体样式', icon: 'FontSizes', count: 13 }
+  { key: 'all', name: '全部模板', icon: 'Grid', count: 156 },
+  { key: 'initial', name: '初始模板', icon: 'Document', count: 48 },
+  { key: 'business', name: '商务模板', icon: 'Briefcase', count: 36 },
+  { key: 'education', name: '教育模板', icon: 'School', count: 28 },
+  { key: 'creative', name: '创意模板', icon: 'Brush', count: 24 },
+  { key: 'data', name: '数据图表', icon: 'DataAnalysis', count: 20 }
 ])
 
-// PPT素材数据
+// PPT模板数据
 const materials = ref<MaterialItem[]>([
   {
     id: '1',
-    name: '商务蓝渐变背景',
-    description: '现代商务风格渐变背景，适合企业汇报',
-    category: 'template',
-    type: 'template',
-    thumbnail: 'https://via.placeholder.com/300x200/409eff/ffffff?text=Business+BG',
-    url: 'https://via.placeholder.com/1920x1080/409eff/ffffff?text=Business+Background',
-    size: '2.3MB',
+    name: '简约初始模板',
+    description: '极简风格初始模板，适合快速开始制作',
+    category: 'initial',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/ffffff/333333?text=Initial',
+    url: '',
+    size: '1.2MB',
     dimensions: '1920×1080',
-    format: 'PNG',
-    downloads: 1248,
+    format: 'PPTX',
+    downloads: 2456,
     isPremium: false,
-    isNew: true,
-    isFavorite: false,
-    previewStyle: 'background: linear-gradient(135deg, #409eff, #67c23a)'
+    isNew: false,
+    isFavorite: true,
+    previewStyle: 'background: linear-gradient(135deg, #f5f7fa, #ffffff)',
+    slideCount: 12
   },
   {
     id: '2',
-    name: '扁平化箭头图标',
-    description: '简洁的扁平化箭头集合，多种方向',
-    category: 'icon',
-    type: 'icon',
-    thumbnail: 'https://via.placeholder.com/300x200/67c23a/ffffff?text=Arrows',
+    name: '商务汇报模板',
+    description: '专业商务风格，适合企业汇报和工作总结',
+    category: 'business',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/409eff/ffffff?text=Business',
     url: '',
-    size: '156KB',
-    dimensions: '512×512',
-    format: 'SVG',
-    downloads: 856,
-    isPremium: false,
+    size: '2.8MB',
+    dimensions: '1920×1080',
+    format: 'PPTX',
+    downloads: 1876,
+    isPremium: true,
     isNew: false,
-    isFavorite: true,
-    color: '#67c23a',
-    icon: 'ArrowRight'
+    isFavorite: false,
+    previewStyle: 'background: linear-gradient(135deg, #409eff, #66b1ff)',
+    slideCount: 24
   },
   {
     id: '3',
-    name: '数据增长图表',
-    description: '立体柱状图模板，展示业绩增长',
-    category: 'chart',
-    type: 'template',
-    thumbnail: 'https://via.placeholder.com/300x200/e6a23c/ffffff?text=Chart',
-    url: 'https://via.placeholder.com/800x600/e6a23c/ffffff?text=Growth+Chart',
-    size: '1.8MB',
-    dimensions: '800×600',
-    format: 'PNG',
-    downloads: 623,
-    isPremium: true,
-    isNew: false,
-    isFavorite: false,
-    previewStyle: 'background: linear-gradient(to top, #e6a23c, #fdf6ec)'
+    name: '教育培训模板',
+    description: '清新教育风格，适合课程教学和培训演示',
+    category: 'education',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/67c23a/ffffff?text=Education',
+    url: '',
+    size: '3.5MB',
+    dimensions: '1920×1080',
+    format: 'PPTX',
+    downloads: 1324,
+    isPremium: false,
+    isNew: true,
+    isFavorite: true,
+    previewStyle: 'background: linear-gradient(135deg, #67c23a, #95d475)',
+    slideCount: 18
   },
   {
     id: '4',
-    name: '团队协作照片',
-    description: '专业团队合影，体现协作精神',
-    category: 'image',
-    type: 'image',
-    thumbnail: 'https://via.placeholder.com/300x200/f56c6c/ffffff?text=Team',
-    url: 'https://via.placeholder.com/1200x800/f56c6c/ffffff?text=Team+Photo',
+    name: '创意设计模板',
+    description: '创意视觉风格，适合产品发布和创意展示',
+    category: 'creative',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/e6a23c/ffffff?text=Creative',
+    url: '',
     size: '4.2MB',
-    dimensions: '1200×800',
-    format: 'JPG',
-    downloads: 432,
-    isPremium: false,
+    dimensions: '1920×1080',
+    format: 'PPTX',
+    downloads: 967,
+    isPremium: true,
     isNew: true,
-    isFavorite: false
+    isFavorite: false,
+    previewStyle: 'background: linear-gradient(135deg, #e6a23c, #f0c78a)',
+    slideCount: 32
   },
   {
     id: '5',
-    name: '现代科技背景',
-    description: '科技感十足的电路板背景',
-    category: 'template',
-    type: 'template',
-    thumbnail: 'https://via.placeholder.com/300x200/5f27cd/ffffff?text=Tech',
-    url: 'https://via.placeholder.com/1920x1080/5f27cd/ffffff?text=Tech+Background',
-    size: '3.1MB',
-    dimensions: '1920×1080',
-    format: 'PNG',
-    downloads: 789,
-    isPremium: true,
-    isNew: false,
-    isFavorite: true,
-    previewStyle: 'background: linear-gradient(45deg, #5f27cd, #00d2d3)'
-  },
-  {
-    id: '6',
-    name: '业务图标集',
-    description: '包含100+常用商务图标',
-    category: 'icon',
-    type: 'icon',
-    thumbnail: 'https://via.placeholder.com/300x200/409eff/ffffff?text=Icons',
+    name: '数据分析模板',
+    description: '专业数据可视化模板，适合报表和分析',
+    category: 'data',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/5f27cd/ffffff?text=Data',
     url: '',
-    size: '2.1MB',
-    dimensions: '1024×1024',
-    format: 'SVG',
-    downloads: 1205,
+    size: '3.8MB',
+    dimensions: '1920×1080',
+    format: 'PPTX',
+    downloads: 743,
     isPremium: true,
     isNew: false,
     isFavorite: false,
-    color: '#409eff',
-    icon: 'SetUp'
+    previewStyle: 'background: linear-gradient(135deg, #5f27cd, #a29bfe)',
+    slideCount: 20
+  },
+  {
+    id: '6',
+    name: '创业路演模板',
+    description: '现代创业风格，适合融资路演和商业计划',
+    category: 'business',
+    type: 'ppt',
+    thumbnail: 'https://via.placeholder.com/300x200/ff6b6b/ffffff?text=Pitch',
+    url: '',
+    size: '4.1MB',
+    dimensions: '1920×1080',
+    format: 'PPTX',
+    downloads: 1156,
+    isPremium: true,
+    isNew: false,
+    isFavorite: true,
+    previewStyle: 'background: linear-gradient(135deg, #ff6b6b, #ffa8a8)',
+    slideCount: 28
   }
 ])
 
-// 精选推荐素材
-const featuredMaterials = computed(() => 
-  materials.value.filter(item => item.downloads > 500).slice(0, 4)
-)
+  // 精选推荐素材
+  const featuredMaterials = computed(() => 
+    materials.value.filter(item => item.downloads > 500 && item.type === 'ppt').slice(0, 4)
+  )
 
 // 计算属性
 const filteredMaterials = computed(() => {
@@ -565,27 +572,27 @@ const getCurrentCategoryName = () => {
   return category ? category.name : '全部素材'
 }
 
-const getCategoryText = (category: string) => {
-  const categoryMap: { [key: string]: string } = {
-    template: '模板背景',
-    icon: '图标素材',
-    chart: '图表图形',
-    image: '图片素材',
-    font: '字体样式'
+  const getCategoryText = (category: string) => {
+    const categoryMap: { [key: string]: string } = {
+      initial: '初始模板',
+      business: '商务模板',
+      education: '教育模板',
+      creative: '创意模板',
+      data: '数据图表'
+    }
+    return categoryMap[category] || '未知'
   }
-  return categoryMap[category] || '未知'
-}
 
-const getCategoryIcon = (category: string) => {
-  const iconMap: { [key: string]: string } = {
-    template: 'Brush',
-    icon: 'PictureFilled',
-    chart: 'DataAnalysis',
-    image: 'Picture',
-    font: 'FontSizes'
+  const getCategoryIcon = (category: string) => {
+    const iconMap: { [key: string]: string } = {
+      initial: 'Document',
+      business: 'Briefcase',
+      education: 'School',
+      creative: 'Brush',
+      data: 'DataAnalysis'
+    }
+    return iconMap[category] || 'Document'
   }
-  return iconMap[category] || 'Picture'
-}
 
 const previewMaterial = (item: MaterialItem) => {
   previewMaterialData.value = item
@@ -628,16 +635,17 @@ const confirmUpload = () => {
       name: uploadForm.name,
       description: uploadForm.description,
       category: uploadForm.category as any,
-      type: uploadForm.category === 'image' ? 'image' : 'template',
+      type: 'ppt',
       thumbnail: URL.createObjectURL(uploadForm.file),
       url: URL.createObjectURL(uploadForm.file),
       size: `${(uploadForm.file.size / 1024 / 1024).toFixed(1)}MB`,
-      dimensions: '未知',
-      format: uploadForm.file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN',
+      dimensions: '1920×1080',
+      format: uploadForm.file.name.split('.').pop()?.toUpperCase() || 'PPTX',
       downloads: 0,
       isPremium: false,
       isNew: true,
-      isFavorite: false
+      isFavorite: false,
+      slideCount: 10
     }
     
     materials.value.unshift(newMaterial)
