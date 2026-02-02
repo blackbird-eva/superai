@@ -21,55 +21,7 @@
       </div>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="stats-section">
-      <el-row :gutter="12">
-        <el-col :span="3">
-          <el-card class="stat-card compact">
-            <div class="stat-content">
-              <div class="stat-number">{{ graphStats.totalNodes }}</div>
-              <div class="stat-label">专业术语</div>
-            </div>
-            <div class="stat-icon nodes-icon">
-              <el-icon><TrendCharts /></el-icon>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="3">
-          <el-card class="stat-card compact">
-            <div class="stat-content">
-              <div class="stat-number">{{ graphStats.totalEdges }}</div>
-              <div class="stat-label">关联关系</div>
-            </div>
-            <div class="stat-icon edges-icon">
-              <el-icon><WindPower /></el-icon>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="3">
-          <el-card class="stat-card compact">
-            <div class="stat-content">
-              <div class="stat-number">{{ graphStats.totalGraphs }}</div>
-              <div class="stat-label">专业图谱</div>
-            </div>
-            <div class="stat-icon graphs-icon">
-              <el-icon><VideoPlay /></el-icon>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="3">
-          <el-card class="stat-card compact">
-            <div class="stat-content">
-              <div class="stat-number">{{ graphStats.domains }}</div>
-              <div class="stat-label">技术领域</div>
-            </div>
-            <div class="stat-icon domains-icon">
-              <el-icon><Tools /></el-icon>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-    </div>
+
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -112,32 +64,64 @@
                 </div>
               </div>
             </div>
+            
+            <!-- 统计信息列表 -->
+            <div class="vertical-stats-list">
+              <div class="stats-list-item">
+                <div class="stats-list-item-content">
+                  <div class="stats-list-item-number">{{ graphStats.totalNodes }}</div>
+                  <div class="stats-list-item-label">专业术语</div>
+                </div>
+                <div class="stats-list-item-icon nodes-icon">
+                  <el-icon><TrendCharts /></el-icon>
+                </div>
+              </div>
+              <div class="stats-list-item">
+                <div class="stats-list-item-content">
+                  <div class="stats-list-item-number">{{ graphStats.totalEdges }}</div>
+                  <div class="stats-list-item-label">关联关系</div>
+                </div>
+                <div class="stats-list-item-icon edges-icon">
+                  <el-icon><WindPower /></el-icon>
+                </div>
+              </div>
+              <div class="stats-list-item">
+                <div class="stats-list-item-content">
+                  <div class="stats-list-item-number">{{ graphStats.totalGraphs }}</div>
+                  <div class="stats-list-item-label">专业图谱</div>
+                </div>
+                <div class="stats-list-item-icon graphs-icon">
+                  <el-icon><VideoPlay /></el-icon>
+                </div>
+              </div>
+              <div class="stats-list-item">
+                <div class="stats-list-item-content">
+                  <div class="stats-list-item-number">{{ graphStats.domains }}</div>
+                  <div class="stats-list-item-label">技术领域</div>
+                </div>
+                <div class="stats-list-item-icon domains-icon">
+                  <el-icon><Tools /></el-icon>
+                </div>
+              </div>
+            </div>
           </el-card>
+
         </el-col>
 
         <!-- 图谱可视化区域 -->
         <el-col :span="21">
           <el-card class="graph-viewer-card">
-            <template #header>
-              <div class="card-header">
-                <div class="viewer-title">
-                  <span v-if="selectedGraph">{{ selectedGraph.name }}</span>
-                  <span v-else>请选择一个知识图谱</span>
-                </div>
-                <div class="viewer-controls" v-if="selectedGraph">
-                  <el-button-group>
-                    <el-button icon="RefreshLeft" @click="refreshGraph" />
-                    <el-button icon="Setting" @click="showLayoutSettings = true" />
-                  </el-button-group>
-                  <el-button type="primary" icon="Plus" @click="addNode">添加节点</el-button>
-                </div>
-              </div>
-            </template>
+
 
             <!-- 图谱容器 - 使用普通div而不是动态ref -->
             <div class="graph-container">
-              <div v-if="!selectedGraph" class="empty-state">
-                <el-empty description="请从左侧选择一个知识图谱进行查看" />
+              <div v-if="!selectedGraph" class="simple-graph-container">
+                <!-- 空的可视化区域 -->
+                <div class="simple-graph">
+                  <div class="graph-visualization" style="display: flex; align-items: center; justify-content: center;">
+                    <div style="color: #909399; font-size: 14px;">请从左侧选择一个知识图谱</div>
+                  </div>
+                </div>
               </div>
               <div v-else-if="loading" class="loading-state">
                 <div class="loading-wrapper">
@@ -148,14 +132,13 @@
               <div v-else class="simple-graph-container">
                 <!-- 使用简单的CSS和HTML来显示图谱 -->
                 <div class="simple-graph">
-                  <h3>{{ selectedGraph.name }}</h3>
                   <div class="graph-visualization">
                     <!-- 连线表示关系 -->
-                    <svg class="relation-lines" :width="graphWidth" :height="graphHeight">
+                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
                       <defs>
                         <marker id="arrowhead" markerWidth="10" markerHeight="7" 
                                 refX="9" refY="3.5" orient="auto">
-                          <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                         </marker>
                       </defs>
                       <line 
@@ -165,7 +148,7 @@
                         :y1="getNodePosition(edge.source).y"
                         :x2="getNodePosition(edge.target).x"
                         :y2="getNodePosition(edge.target).y"
-                        stroke="#666" 
+                        stroke="#1e40af" 
                         stroke-width="2"
                         marker-end="url(#arrowhead)"
                       />
@@ -249,6 +232,7 @@
               </div>
             </div>
           </el-card>
+
         </el-col>
       </el-row>
     </div>
@@ -514,15 +498,15 @@ const refreshGraph = () => {
   }
 }
 
-// 获取节点位置
+// 获取节点位置（百分比坐标）
 const getNodePosition = (nodeId) => {
   const node = currentNodes.value.find(n => n.id === nodeId)
   if (!node) return { x: 0, y: 0 }
   
-  // 将百分比转换为实际像素坐标
+  // 直接返回百分比坐标（0-100）
   return {
-    x: (node.x / 100) * graphWidth,
-    y: (node.y / 100) * graphHeight
+    x: node.x,
+    y: node.y
   }
 }
 
@@ -694,6 +678,110 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.combined-stats-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.vertical-stats-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 16px;
+}
+
+.vertical-stats-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e4e7ed;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.stats-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.stats-list-item:last-child {
+  border-bottom: none;
+}
+
+.stats-list-item-content {
+  flex: 1;
+}
+
+.stats-list-item-number {
+  font-size: 16px;
+  font-weight: bold;
+  color: #303133;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.stats-list-item-label {
+  margin-top: 0;
+  color: #909399;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.stats-list-item-icon {
+  font-size: 18px;
+  opacity: 0.4;
+  margin-left: 12px;
+}
+
+.combined-stats-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.stats-item {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  position: relative;
+  min-height: 50px;
+}
+
+.stats-item:not(:last-child) {
+  border-right: 1px solid #e4e7ed;
+}
+
+.stats-item-content {
+  flex: 1;
+}
+
+.stats-item-number {
+  font-size: 20px;
+  font-weight: bold;
+  color: #303133;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.stats-item-label {
+  margin-top: 0;
+  color: #909399;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.stats-item-icon {
+  font-size: 20px;
+  opacity: 0.4;
+  margin-left: 12px;
+}
+
 .stat-card {
   position: relative;
   overflow: hidden;
@@ -826,7 +914,7 @@ onMounted(() => {
 }
 
 .graph-container {
-  height: 600px;
+  height: 800px;
   position: relative;
 }
 
@@ -872,7 +960,7 @@ onMounted(() => {
 /* 简单图谱样式 */
 .simple-graph-container {
   height: 100%;
-  padding: 20px;
+  padding: 10px;
   position: relative;
 }
 
@@ -880,9 +968,11 @@ onMounted(() => {
   height: 100%;
   position: relative;
   background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
-  border-radius: 12px;
-  padding: 20px;
-  border: 2px solid #e3e8ff;
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #e3e8ff;
+  display: flex;
+  flex-direction: column;
 }
 
 .simple-graph h3 {
@@ -897,11 +987,12 @@ onMounted(() => {
 
 .graph-visualization {
   position: relative;
-  height: 300px;
-  margin-bottom: 20px;
+  flex: 1;
+  margin-bottom: 5px;
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
   background: white;
+  min-height: 400px;
 }
 
 .relation-lines {
@@ -945,61 +1036,65 @@ onMounted(() => {
 }
 
 .node-name {
-  color: white;
-  font-size: 11px;
+  color: #1e40af; /* 深蓝色，对比度高 */
+  font-size: 12px;
   font-weight: bold;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+  line-height: 1.3;
+  text-align: center;
+  word-break: break-word;
+  padding: 2px;
 }
 
 .relations-panel {
   background: white;
   border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-left: 4px solid #3b82f6;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-left: 3px solid #3b82f6;
 }
 
 .relations-panel h4 {
-  margin: 0 0 10px 0;
+  margin: 0 0 8px 0;
   color: #1e40af;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
 }
 
 .relation-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .relation-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding: 4px 0;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 0;
 }
 
 .source-node {
   color: #dc2626;
   font-weight: bold;
   background: #fef2f2;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .relation-arrow {
-  color: #64748b;
-  font-size: 11px;
+  color: #475569; /* 更深的灰色，对比度更高 */
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .target-node {
   color: #059669;
   font-weight: bold;
   background: #f0fdf4;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .graph-nodes {
@@ -1051,18 +1146,18 @@ onMounted(() => {
 
 .graph-legend {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 15px;
+  right: 15px;
   background: white;
-  padding: 15px;
+  padding: 10px;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  min-width: 140px;
+  min-width: 120px;
 }
 
 .graph-legend h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
+  margin: 0 0 8px 0;
+  font-size: 13px;
   color: #303133;
   font-weight: bold;
 }
@@ -1070,9 +1165,9 @@ onMounted(() => {
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 11px;
 }
 
 .legend-color {
@@ -1102,6 +1197,8 @@ onMounted(() => {
   pointer-events: none;
   max-width: 200px;
 }
+
+
 
 @media (max-width: 768px) {
   .page-header {
