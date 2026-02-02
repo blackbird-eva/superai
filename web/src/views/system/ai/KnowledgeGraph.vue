@@ -134,22 +134,25 @@
                 <div class="simple-graph">
                   <div class="graph-visualization">
                     <!-- 连线表示关系 -->
-                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" overflow="visible">
                       <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
-                                refX="9" refY="3.5" orient="auto">
-                          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                        <marker id="arrowhead" markerWidth="5" markerHeight="3" 
+                                refX="4.5" refY="1.5" orient="auto">
+                          <polygon points="0 0, 5 1.5, 0 3" fill="#6366f1" />
                         </marker>
                       </defs>
                       <line 
                         v-for="edge in selectedGraph.edges"
                         :key="edge.source + '-' + edge.target"
-                        :x1="getNodePosition(edge.source).x"
-                        :y1="getNodePosition(edge.source).y"
-                        :x2="getNodePosition(edge.target).x"
-                        :y2="getNodePosition(edge.target).y"
-                        stroke="#1e40af" 
-                        stroke-width="2"
+                        :x1="getAdjustedEdgePositions(edge).x1"
+                        :y1="getAdjustedEdgePositions(edge).y1"
+                        :x2="getAdjustedEdgePositions(edge).x2"
+                        :y2="getAdjustedEdgePositions(edge).y2"
+                        stroke="#6366f1" 
+                        stroke-width="1.0"
+                        stroke-opacity="0.9"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
                         marker-end="url(#arrowhead)"
                       />
                     </svg>
@@ -474,8 +477,8 @@ const getNodeStyle = (node: any) => {
     left: `${node.x}%`,
     top: `${node.y}%`,
     backgroundColor: colors[node.category] || '#ccc',
-    width: `${node.symbolSize * 0.8}px`,
-    height: `${node.symbolSize * 0.8}px`
+    width: `${node.symbolSize * 2.0}px`,
+    height: `${node.symbolSize * 2.0}px`
   }
 }
 
@@ -507,6 +510,91 @@ const getNodePosition = (nodeId) => {
   return {
     x: node.x,
     y: node.y
+  }
+}
+
+// 获取调整后的边缘线条起点和终点（考虑节点半径）
+const getAdjustedEdgePositions = (edge) => {
+  const sourceNode = currentNodes.value.find(n => n.id === edge.source)
+  const targetNode = currentNodes.value.find(n => n.id === edge.target)
+  
+  if (!sourceNode || !targetNode) {
+    return {
+      x1: sourceNode?.x || 0,
+      y1: sourceNode?.y || 0,
+      x2: targetNode?.x || 0,
+      y2: targetNode?.y || 0
+    }
+  }
+  
+  // 计算方向向量
+  const dx = targetNode.x - sourceNode.x
+  const dy = targetNode.y - sourceNode.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  
+  if (distance === 0) {
+    return {
+      x1: sourceNode.x,
+      y1: sourceNode.y,
+      x2: targetNode.x,
+      y2: targetNode.y
+    }
+  }
+  
+  // 单位向量
+  const ux = dx / distance
+  const uy = dy / distance
+  
+  // 计算节点的实际像素尺寸
+  const container = document.querySelector('.graph-visualization')
+  if (!container) {
+    return {
+      x1: sourceNode.x,
+      y1: sourceNode.y,
+      x2: targetNode.x,
+      y2: targetNode.y
+    }
+  }
+  
+  const containerRect = container.getBoundingClientRect()
+  const containerWidth = containerRect.width
+  const containerHeight = containerRect.height
+  
+  // 节点实际像素尺寸
+  const sourceWidthPx = sourceNode.symbolSize * 2.0
+  const sourceHeightPx = sourceNode.symbolSize * 2.0
+  const targetWidthPx = targetNode.symbolSize * 2.0
+  const targetHeightPx = targetNode.symbolSize * 2.0
+  
+  // 转换为百分比
+  const sourceRadiusPercentX = (sourceWidthPx / 2) / containerWidth * 100
+  const sourceRadiusPercentY = (sourceHeightPx / 2) / containerHeight * 100
+  const targetRadiusPercentX = (targetWidthPx / 2) / containerWidth * 100
+  const targetRadiusPercentY = (targetHeightPx / 2) / containerHeight * 100
+  
+  // 根据方向向量选择对应的半径百分比
+  const sourceRadiusPercent = Math.sqrt(
+    Math.pow(ux * sourceRadiusPercentX, 2) + 
+    Math.pow(uy * sourceRadiusPercentY, 2)
+  )
+  const targetRadiusPercent = Math.sqrt(
+    Math.pow(ux * targetRadiusPercentX, 2) + 
+    Math.pow(uy * targetRadiusPercentY, 2)
+  )
+  
+  // 调整源节点坐标：沿向量方向移动半径
+  const adjustedSourceX = sourceNode.x + ux * sourceRadiusPercent
+  const adjustedSourceY = sourceNode.y + uy * sourceRadiusPercent
+  
+  // 调整目标节点坐标：沿向量反方向移动半径（让箭头指向边缘）
+  const adjustedTargetX = targetNode.x - ux * targetRadiusPercent
+  const adjustedTargetY = targetNode.y - uy * targetRadiusPercent
+  
+  return {
+    x1: adjustedSourceX,
+    y1: adjustedSourceY,
+    x2: adjustedTargetX,
+    y2: adjustedTargetY
   }
 }
 
@@ -989,7 +1077,7 @@ onMounted(() => {
   position: relative;
   flex: 1;
   margin-bottom: 5px;
-  border: 1px dashed #cbd5e1;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: white;
   min-height: 400px;
@@ -1032,7 +1120,7 @@ onMounted(() => {
 
 .node-content {
   text-align: center;
-  padding: 4px 8px;
+  padding: 8px 12px;
 }
 
 .node-name {
@@ -1097,52 +1185,9 @@ onMounted(() => {
   border-radius: 3px;
 }
 
-.graph-nodes {
-  position: relative;
-  height: 400px;
-  border: 1px dashed #ddd;
-  border-radius: 4px;
-}
 
-.graph-node {
-  position: absolute;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
 
-.graph-node:hover {
-  transform: translate(-50%, -50%) scale(1.2);
-  z-index: 10;
-}
 
-.graph-node.core {
-  background: #ff6b6b;
-}
-
-.graph-node.algorithm {
-  background: #4ecdc4;
-}
-
-.graph-node.application {
-  background: #45b7d1;
-}
-
-.graph-node.method {
-  background: #f7b731;
-}
-
-.graph-node.framework {
-  background: #5f27cd;
-}
 
 .graph-legend {
   position: absolute;
