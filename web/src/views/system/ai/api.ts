@@ -165,3 +165,95 @@ export function DownloadPPT(file_path: string) {
         responseType: 'blob',
     });
 }
+
+/**
+ * 获取PPT文件列表
+ */
+export function GetPPTList(query: UserPageQuery) {
+    return request({
+        url: '/api/system/pptfile/',
+        method: 'get',
+        params: query,
+    });
+}
+
+/**
+ * 获取PPT详情
+ */
+export function GetPPTDetail(id: string) {
+    return request({
+        url: '/api/system/pptfile/' + id + '/',
+        method: 'get',
+    });
+}
+
+/**
+ * 更新PPT文件信息
+ */
+export function UpdatePPT(obj: EditReq) {
+    return request({
+        url: '/api/system/pptfile/' + obj.id + '/',
+        method: 'put',
+        data: obj,
+    });
+}
+
+/**
+ * 删除PPT文件
+ */
+export function DeletePPT(id: string) {
+    return request({
+        url: '/api/system/pptfile/' + id + '/',
+        method: 'delete',
+    });
+}
+
+/**
+ * PPT分享
+ */
+export function SharePPT(id: string) {
+    return request({
+        url: '/api/system/pptfile/' + id + '/share/',
+        method: 'post',
+    });
+}
+
+/**
+ * PPT统计
+ */
+export function GetPPTStatistics(id: string) {
+    return request({
+        url: '/api/system/pptfile/' + id + '/statistics/',
+        method: 'get',
+    });
+}
+
+/**
+ * 上传文件并生成PPT
+ */
+export function UploadFileAndGeneratePPT(data: FormData) {
+    return request({
+        url: '/api/system/pptfile/',
+        method: 'post',
+        data: data,
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+}
+
+/**
+ * 读取上传的文件内容
+ */
+export function ReadUploadFile(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+            resolve(e.target?.result as string)
+        }
+        reader.onerror = (e) => {
+            reject(e)
+        }
+        reader.readAsText(file)
+    });
+}

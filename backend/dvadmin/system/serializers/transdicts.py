@@ -58,13 +58,13 @@ class DocxfileSerializer(CustomModelSerializer):
     
     class Meta:
         model = Docxfile
-        fields = """
-        id, original_name, file_path, file_size, type, type_display,
-        about_text, transtask, graphtask, share, userversion,
-        status, status_display, paragraph_count, word_count, page_count,
-        source_language, target_language, processing_time, error_message,
-        translated_path, translated_filename, create_datetime, update_datetime
-        """
+        fields = [
+            "id", "original_name", "file_path", "file_size", "type", "type_display",
+            "about_text", "transtask", "graphtask", "share", "userversion",
+            "status", "status_display", "paragraph_count", "word_count", "page_count",
+            "source_language", "target_language", "processing_time", "error_message",
+            "translated_path", "translated_filename", "create_datetime", "update_datetime"
+        ]
         read_only_fields = ["id", "create_datetime", "update_datetime", "file_size"]
 
 
@@ -75,11 +75,11 @@ class DocxfileUploadSerializer(CustomModelSerializer):
     
     class Meta:
         model = Docxfile
-        fields = """
-        original_name, file_path, type, about_text, 
-        transtask, graphtask, share, userversion,
-        source_language, target_language
-        """
+        fields = [
+            "original_name", "file_path", "type", "about_text", 
+            "transtask", "graphtask", "share", "userversion",
+            "source_language", "target_language"
+        ]
 
 
 class DocxfileTranslateSerializer(CustomModelSerializer):
@@ -115,11 +115,11 @@ class DocxfileCreateUpdateSerializer(CustomModelSerializer):
 
     class Meta:
         model = Docxfile
-        fields = """
-        original_name, file_path, type, about_text,
-        transtask, graphtask, share, userversion,
-        source_language, target_language
-        """
+        fields = [
+            "original_name", "file_path", "type", "about_text",
+            "transtask", "graphtask", "share", "userversion",
+            "source_language", "target_language"
+        ]
 
 
 # ============================================
@@ -401,18 +401,18 @@ class PPTFileSerializer(CustomModelSerializer):
 
     class Meta:
         model = PPTFile
-        fields = """
-        id, title, original_name, file_path, file_url, file_size,
-        source_type, source_type_display, source_url,
-        content_text, content_summary,
-        theme, theme_display, slide_count, include_charts, language, language_display,
-        status, status_display,
-        view_count, download_count,
-        is_public, share_code,
-        tags, category,
-        error_message, preview_data,
-        create_datetime, update_datetime
-        """
+        fields = [
+            "id", "title", "original_name", "file_path", "file_url", "file_size",
+            "source_type", "source_type_display", "source_url",
+            "content_text", "content_summary",
+            "theme", "theme_display", "slide_count", "include_charts", "language", "language_display",
+            "status", "status_display",
+            "view_count", "download_count",
+            "is_public", "share_code",
+            "tags", "category",
+            "error_message", "preview_data",
+            "create_datetime", "update_datetime"
+        ]
         read_only_fields = [
             "id", "create_datetime", "update_datetime",
             "file_size", "status", "share_code", "view_count", "download_count"
@@ -464,13 +464,13 @@ class PPTFileCreateSerializer(CustomModelSerializer):
 
     class Meta:
         model = PPTFile
-        fields = """
-        title, original_name,
-        source_type, source_url,
-        content_text, content_summary,
-        theme, slide_count, include_charts, language,
-        tags, category, is_public
-        """
+        fields = [
+            "title", "original_name",
+            "source_type", "source_url",
+            "content_text", "content_summary",
+            "theme", "slide_count", "include_charts", "language",
+            "tags", "category", "is_public"
+        ]
 
 
 class PPTFileUpdateSerializer(CustomModelSerializer):
@@ -494,11 +494,11 @@ class PPTFileUpdateSerializer(CustomModelSerializer):
 
     class Meta:
         model = PPTFile
-        fields = """
-        title, content_summary,
-        theme, slide_count, include_charts, language,
-        tags, category, is_public
-        """
+        fields = [
+            "title", "content_summary",
+            "theme", "slide_count", "include_charts", "language",
+            "tags", "category", "is_public"
+        ]
 
 
 class PPTFileListSerializer(CustomModelSerializer):
@@ -517,11 +517,11 @@ class PPTFileListSerializer(CustomModelSerializer):
 
     class Meta:
         model = PPTFile
-        fields = """
-        id, title, original_name, file_url, file_size,
-        theme, theme_display, slide_count,
-        status, status_display,
-        view_count, download_count, is_public,
-        tags, category,
-        create_datetime
-        """
+        fields = [
+            "id", "title", "original_name", "file_url", "file_size",
+            "theme", "theme_display", "slide_count",
+            "status", "status_display",
+            "view_count", "download_count", "is_public",
+            "tags", "category",
+            "create_datetime"
+        ]

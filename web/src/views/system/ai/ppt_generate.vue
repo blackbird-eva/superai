@@ -10,7 +10,7 @@
     </div>
 
     <!-- 主要内容区域 -->
-    <div class="main-content">
+    <div class="main-content" v-if="currentTab === 'generate'">
       <!-- 左侧上传区域 -->
       <div class="left-panel">
         <el-card class="upload-card" shadow="never">
@@ -208,6 +208,199 @@
       </div>
     </div>
 
+    <!-- PPT文件列表 -->
+    <div class="ppt-list-section" v-if="currentTab === 'list'">
+      <el-card class="list-card" shadow="never">
+        <template #header>
+          <div class="card-header">
+            <span class="card-title">
+              <el-icon><Folder /></el-icon>
+              我的PPT文件
+            </span>
+            <div class="header-actions">
+              <el-button type="primary" @click="currentTab = 'generate'">
+                <el-icon><Plus /></el-icon>
+                新建PPT
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索PPT标题..."
+            clearable
+            @clear="loadPPTList"
+            @keyup.enter="loadPPTList"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button type="primary" @click="loadPPTList">搜索</el-button>
+        </div>
+
+        <!-- PPT列表表格 -->
+        <el-table
+          :data="pptList"
+          v-loading="listLoading"
+          style="width: 100%"
+          @sort-change="handleSortChange"
+        >
+          <el-table-column prop="title" label="PPT标题" min-width="200" sortable>
+            <template #default="{ row }">
+              <div class="ppt-title-cell">
+                <el-icon><Document /></el-icon>
+                <span>{{ row.title }}</span>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="theme" label="主题" width="120">
+            <template #default="{ row }">
+              <el-tag size="small">{{ getThemeLabel(row.theme) }}</el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="slide_count" label="幻灯片数" width="100" sortable align="center" />
+
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getStatusType(row.status)" size="small">
+                {{ getStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="create_time" label="创建时间" width="180" sortable>
+            <template #default="{ row }">
+              {{ formatDate(row.create_time) }}
+            </template>
+          </el-table-column>
+
+          <el-table-column prop="download_count" label="下载次数" width="100" sortable align="center" />
+
+          <el-table-column label="操作" width="240" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="viewPPT(row)">
+                <el-icon><View /></el-icon>
+                查看
+              </el-button>
+              <el-button link type="warning" @click="editPPT(row)">
+                <el-icon><Edit /></el-icon>
+                编辑
+              </el-button>
+              <el-button link type="success" @click="downloadPPTFromList(row)">
+                <el-icon><Download /></el-icon>
+                下载
+              </el-button>
+              <el-popconfirm
+                title="确定要删除这个PPT吗？"
+                @confirm="deletePPT(row.id)"
+              >
+                <template #reference>
+                  <el-button link type="danger">
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 分页 -->
+        <div class="pagination">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadPPTList"
+            @current-change="loadPPTList"
+          />
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 切换标签页 -->
+    <div class="tab-switcher">
+      <el-button-group>
+        <el-button
+          :type="currentTab === 'generate' ? 'primary' : ''"
+          @click="currentTab = 'generate'"
+        >
+          <el-icon><MagicStick /></el-icon>
+          生成PPT
+        </el-button>
+        <el-button
+          :type="currentTab === 'list' ? 'primary' : ''"
+          @click="currentTab = 'list'; loadPPTList()"
+        >
+          <el-icon><Folder /></el-icon>
+          我的PPT
+          <el-badge :value="total" :max="99" class="badge" />
+        </el-button>
+      </el-button-group>
+    </div>
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑PPT"
+      width="600px"
+      :before-close="closeEditDialog"
+    >
+      <el-form
+        v-if="editingPPT"
+        :model="editingPPT"
+        :rules="editRules"
+        ref="editFormRef"
+        label-width="100px"
+      >
+        <el-form-item label="PPT标题" prop="title">
+          <el-input v-model="editingPPT.title" placeholder="请输入PPT标题" />
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input
+            v-model="editingPPT.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入描述"
+          />
+        </el-form-item>
+        <el-form-item label="主题" prop="theme">
+          <el-select v-model="editingPPT.theme" placeholder="选择主题">
+            <el-option label="商务简约" value="business" />
+            <el-option label="科技现代" value="tech" />
+            <el-option label="教育培训" value="education" />
+            <el-option label="创意活泼" value="creative" />
+            <el-option label="学术正式" value="academic" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="幻灯片数">
+          <el-input-number v-model="editingPPT.slide_count" :min="1" :max="100" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="editingPPT.status" placeholder="选择状态">
+            <el-option label="待处理" value="pending" />
+            <el-option label="生成中" value="generating" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="失败" value="failed" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeEditDialog">取消</el-button>
+          <el-button type="primary" @click="savePPT" :loading="saving">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 幻灯片详情对话框 -->
     <el-dialog
       v-model="slideDetailVisible"
@@ -248,26 +441,38 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Document, Upload, UploadFilled, EditPen, Setting, MagicStick,
-  View, Download, ZoomIn, Loading, Picture, Edit, Share,
-  Check, Clock, Star
+  View, Download, ZoomIn, Loading, Edit, Folder, Plus, Search, Delete
 } from '@element-plus/icons-vue'
-import { GeneratePPT, DownloadPPT } from './api'
+import { GeneratePPT, DownloadPPT, GetPPTList, GetPPTDetail, UpdatePPT, DeletePPT, UploadFileAndGeneratePPT, ReadUploadFile } from './api'
 
 // 响应式数据
-const fileList = ref([])
+const fileList = ref<any[]>([])
 const inputText = ref('')
 const isGenerating = ref(false)
 const isDownloading = ref(false)
-const generatedPPT = ref(null)
+const generatedPPT = ref<any | null>(null)
 const slideDetailVisible = ref(false)
-const selectedSlide = ref(null)
+const selectedSlide = ref<any | null>(null)
 const generationProgress = ref(0)
 const generationStatus = ref('')
 const pptFilePath = ref('')
 const pptFileName = ref('')
+
+// CRUD相关数据
+const currentTab = ref('generate')
+const pptList = ref<any[]>([])
+const listLoading = ref(false)
+const searchKeyword = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const editDialogVisible = ref(false)
+const editingPPT = ref<any | null>(null)
+const saving = ref(false)
+const editFormRef = ref<any | null>(null)
 
 // 生成选项
 const generateOptions = reactive({
@@ -276,6 +481,14 @@ const generateOptions = reactive({
   includeCharts: true,
   language: 'zh'
 })
+
+// 编辑表单验证规则
+const editRules = {
+  title: [{ required: true, message: '请输入PPT标题', trigger: 'blur' }],
+  description: [{ required: false }],
+  theme: [{ required: true, message: '请选择主题', trigger: 'change' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+}
 
 // 进度步骤
 const progressSteps = ref([
@@ -292,9 +505,71 @@ const canGenerate = computed(() => {
 })
 
 // 文件上传处理
-const handleFileChange = (file: any, files: any[]) => {
+const handleFileChange = async (file: any, files: any[]) => {
   fileList.value = files
-  ElMessage.success(`已添加文件: ${file.name}`)
+  
+  // 验证文件大小和类型
+  const maxSize = 10 * 1024 * 1024 // 10MB
+  if (file.size > maxSize) {
+    ElMessage.error(`文件 ${file.name} 超过10MB限制`)
+    // 移除超大文件
+    fileList.value = fileList.value.filter((f: any) => f.uid !== file.uid)
+    return
+  }
+  
+  // 获取文件扩展名
+  const fileName = file.name.toLowerCase()
+  const fileExtension = fileName.split('.').pop()
+  
+  // 支持的扩展名列表
+  const supportedExtensions = [
+    'txt', 'md',
+    'pdf',
+    'doc', 'docx',
+    'jpg', 'jpeg', 'png', 'gif', 'bmp',
+    'ppt', 'pptx'
+  ]
+  
+  // 支持的MIME类型
+  const supportedMimeTypes = [
+    'text/plain', 'text/markdown',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'image/jpeg', 'image/png', 'image/gif', 'image/bmp',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint'
+  ]
+  
+  // 检查文件是否支持（通过扩展名或MIME类型）
+  const isExtensionSupported = fileExtension && supportedExtensions.includes(fileExtension)
+  const isMimeTypeSupported = file.type && supportedMimeTypes.includes(file.type)
+  
+  // 更宽松的验证：扩展名支持就认为是支持的格式
+  if (!isExtensionSupported && !isMimeTypeSupported) {
+    ElMessage.warning(`文件 ${file.name} 格式可能不受支持，但仍会尝试处理`)
+  } else {
+    const supportReason = isExtensionSupported ? '扩展名' : 'MIME类型'
+    console.log(`文件 ${file.name} 通过${supportReason}验证支持`)
+  }
+  
+  ElMessage.success(`已添加文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+  
+  // 如果是文本文件，尝试读取内容并显示在文本框中
+  if (file.type.startsWith('text/')) {
+    try {
+      const content = await ReadUploadFile(file.raw)
+      if (content && content.trim()) {
+        // 如果文本框为空，自动填入文件内容
+        if (!inputText.value.trim()) {
+          inputText.value = content.substring(0, 5000) // 限制长度
+          ElMessage.info(`已自动填充文件内容到文本框（前5000字符）`)
+        }
+      }
+    } catch (error) {
+      console.warn('无法读取文件内容:', error)
+    }
+  }
 }
 
 const handleFileRemove = (file: any, files: any[]) => {
@@ -319,25 +594,76 @@ const generatePPT = async () => {
     // 模拟生成过程
     await simulateGenerationProcess()
 
-    // 准备请求数据
-    const requestData = {
-      text: inputText.value,
-      theme: generateOptions.theme,
-      slide_count: generateOptions.slideCount,
-      include_charts: generateOptions.includeCharts,
-      language: generateOptions.language
-    }
-
-    // 如果有文件上传，可以使用文件内容
+    let response
+    
+    // 如果有文件上传，使用文件上传API
     if (fileList.value.length > 0) {
-      // 这里可以扩展文件处理逻辑
-      ElMessage.warning('文件上传功能开发中，请使用文本输入')
-      isGenerating.value = false
-      return
+      isGenerating.value = true
+      generationStatus.value = '正在准备上传...'
+      
+      try {
+        // 创建FormData对象
+        const formData = new FormData()
+        
+        // 添加文件
+        fileList.value.forEach(file => {
+          formData.append('files', file.raw)
+        })
+        
+        // 添加其他参数
+        formData.append('title', inputText.value || '上传文件生成的PPT')
+        formData.append('theme', generateOptions.theme)
+        formData.append('slide_count', generateOptions.slideCount.toString())
+        formData.append('include_charts', generateOptions.includeCharts.toString())
+        formData.append('language', generateOptions.language)
+        formData.append('source_type', 'file_upload')
+        
+        // 如果有文本内容，也添加到描述中
+        if (inputText.value.trim()) {
+          formData.append('content_summary', inputText.value.substring(0, 2000))
+        }
+        
+        // 重置进度步骤
+        progressSteps.value.forEach(step => {
+          step.active = false
+          step.completed = false
+        })
+        
+        // 模拟文件上传进度
+        await simulateFileUploadProgress()
+        
+        // 调用文件上传API
+        response = await UploadFileAndGeneratePPT(formData)
+        
+        ElMessage.success('文件上传并生成PPT成功！')
+      } catch (uploadError: any) {
+        console.error('文件上传失败:', uploadError)
+        ElMessage.error(uploadError.response?.data?.msg || '文件上传失败，请重试')
+        isGenerating.value = false
+        return
+      }
+    } else {
+      // 如果没有文件，使用原有的文本生成API
+      const requestData = {
+        text: inputText.value,
+        theme: generateOptions.theme,
+        slide_count: generateOptions.slideCount,
+        include_charts: generateOptions.includeCharts,
+        language: generateOptions.language
+      }
+      
+      // 重置进度步骤
+      progressSteps.value.forEach(step => {
+        step.active = false
+        step.completed = false
+      })
+      
+      // 模拟生成过程
+      await simulateGenerationProcess()
+      
+      // 调用API生成PPT
+      response = await GeneratePPT(requestData)
     }
-
-    // 调用API生成PPT
-    const response = await GeneratePPT(requestData)
 
     // 保存生成的PPT数据和文件信息
     generatedPPT.value = {
@@ -387,6 +713,31 @@ const simulateGenerationProcess = async () => {
     progressStep.active = false
     progressStep.completed = true
     generationProgress.value = ((i + 1) / steps.length) * 100
+  }
+}
+
+// 真实文件上传进度模拟
+const simulateFileUploadProgress = async () => {
+  const uploadSteps = [
+    { text: '正在上传文件...', duration: 2000 },
+    { text: '解析文件内容...', duration: 1500 },
+    { text: 'AI分析文档结构...', duration: 2500 },
+    { text: '提取关键信息...', duration: 2000 },
+    { text: '生成PPT内容...', duration: 3000 }
+  ]
+
+  for (let i = 0; i < uploadSteps.length; i++) {
+    const step = uploadSteps[i]
+    const progressStep = progressSteps.value[i]
+    
+    progressStep.active = true
+    generationStatus.value = step.text
+    
+    await new Promise(resolve => setTimeout(resolve, step.duration))
+    
+    progressStep.active = false
+    progressStep.completed = true
+    generationProgress.value = ((i + 1) / uploadSteps.length) * 100
   }
 }
 
@@ -503,8 +854,10 @@ const previewPPT = () => {
 
 // 查看幻灯片详情
 const viewSlideDetail = (index: number) => {
-  selectedSlide.value = generatedPPT.value.slides[index]
-  slideDetailVisible.value = true
+  if (generatedPPT.value && generatedPPT.value.slides) {
+    selectedSlide.value = generatedPPT.value.slides[index]
+    slideDetailVisible.value = true
+  }
 }
 
 // 关闭幻灯片详情
@@ -513,9 +866,190 @@ const closeSlideDetail = () => {
   selectedSlide.value = null
 }
 
+// CRUD功能实现
+
+// 加载PPT列表
+const loadPPTList = async () => {
+  listLoading.value = true
+  try {
+    const response = await GetPPTList({
+      page: currentPage.value,
+      page_size: pageSize.value,
+      search: searchKeyword.value
+    })
+    pptList.value = response.data.results || response.data || []
+    total.value = response.data.count || response.data.length || 0
+  } catch (error: any) {
+    console.error('加载PPT列表失败:', error)
+    ElMessage.error('加载PPT列表失败')
+  } finally {
+    listLoading.value = false
+  }
+}
+
+// 查看PPT详情
+const viewPPT = async (ppt: any) => {
+  try {
+    const response = await GetPPTDetail(ppt.id)
+    generatedPPT.value = {
+      title: response.data.title,
+      description: response.data.description,
+      theme: getThemeLabel(response.data.theme),
+      slideCount: response.data.slide_count,
+      createTime: formatDate(response.data.create_time),
+      slides: response.data.slides || []
+    }
+    pptFilePath.value = response.data.ppt_file_path
+    pptFileName.value = response.data.ppt_file_name || `${response.data.title}.pptx`
+    currentTab.value = 'generate'
+    ElMessage.success('加载PPT成功')
+  } catch (error: any) {
+    console.error('加载PPT详情失败:', error)
+    ElMessage.error('加载PPT详情失败')
+  }
+}
+
+// 编辑PPT
+const editPPT = (ppt: any) => {
+  editingPPT.value = {
+    id: ppt.id,
+    title: ppt.title,
+    description: ppt.description || '',
+    theme: ppt.theme,
+    slide_count: ppt.slide_count,
+    status: ppt.status
+  }
+  editDialogVisible.value = true
+}
+
+// 保存PPT
+const savePPT = async () => {
+  if (!editFormRef.value || !editingPPT.value) return
+
+  try {
+    await editFormRef.value.validate()
+    saving.value = true
+
+    await UpdatePPT({
+      id: editingPPT.value.id,
+      title: editingPPT.value.title,
+      description: editingPPT.value.description,
+      theme: editingPPT.value.theme,
+      slide_count: editingPPT.value.slide_count,
+      status: editingPPT.value.status
+    })
+    ElMessage.success('保存成功')
+    closeEditDialog()
+    loadPPTList()
+  } catch (error: any) {
+    if (error.response?.data) {
+      ElMessage.error(error.response.data.msg || '保存失败')
+    } else {
+      console.error('保存失败:', error)
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+// 删除PPT
+const deletePPT = async (id: string) => {
+  try {
+    await DeletePPT(id)
+    ElMessage.success('删除成功')
+    loadPPTList()
+  } catch (error: any) {
+    console.error('删除失败:', error)
+    ElMessage.error(error.response?.data?.msg || '删除失败')
+  }
+}
+
+// 从列表下载PPT
+const downloadPPTFromList = async (ppt: any) => {
+  isDownloading.value = true
+  try {
+    const response = await DownloadPPT(ppt.ppt_file_path || ppt.file_path)
+    const blob = new Blob([response], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = ppt.ppt_file_name || `${ppt.title}.pptx`
+    document.body.appendChild(link)
+    link.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(link)
+    ElMessage.success('下载成功')
+  } catch (error: any) {
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败')
+  } finally {
+    isDownloading.value = false
+  }
+}
+
+// 关闭编辑对话框
+const closeEditDialog = () => {
+  editDialogVisible.value = false
+  editingPPT.value = null
+}
+
+// 处理排序变化
+const handleSortChange = ({ prop, order }: any) => {
+  // 可以在这里实现排序逻辑
+  console.log('排序:', prop, order)
+  loadPPTList()
+}
+
+// 工具函数
+const getThemeLabel = (theme: string) => {
+  const themes: { [key: string]: string } = {
+    business: '商务简约',
+    tech: '科技现代',
+    education: '教育培训',
+    creative: '创意活泼',
+    academic: '学术正式'
+  }
+  return themes[theme] || theme
+}
+
+const getStatusType = (status: string) => {
+  const types: { [key: string]: string } = {
+    pending: 'info',
+    generating: 'warning',
+    completed: 'success',
+    failed: 'danger'
+  }
+  return types[status] || 'info'
+}
+
+const getStatusLabel = (status: string) => {
+  const labels: { [key: string]: string } = {
+    pending: '待处理',
+    generating: '生成中',
+    completed: '已完成',
+    failed: '失败'
+  }
+  return labels[status] || status
+}
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 // 组件挂载
 onMounted(() => {
-  // 可以在这里加载用户的历史记录等
+  // 初始加载PPT列表
+  loadPPTList()
 })
 </script>
 
@@ -524,6 +1058,7 @@ onMounted(() => {
   padding: 24px;
   background-color: #f5f5f5;
   min-height: 100vh;
+  position: relative;
 }
 
 .page-header {
@@ -900,5 +1435,57 @@ onMounted(() => {
   .slides-preview {
     grid-template-columns: 1fr;
   }
+}
+
+/* PPT列表相关样式 */
+.ppt-list-section {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.list-card {
+  border: none;
+  border-radius: 12px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.search-bar .el-input {
+  flex: 1;
+  max-width: 400px;
+}
+
+.ppt-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.tab-switcher {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.badge {
+  margin-left: 4px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>
