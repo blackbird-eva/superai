@@ -4,10 +4,9 @@
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
-          <el-icon class="title-icon"><Share /></el-icon>
-          知识图谱管理
+          <el-icon class="title-icon"><TrendCharts /></el-icon>
+          直升机知识图谱中心
         </h1>
-        <p class="page-subtitle">可视化展示和管理知识体系关联关系</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" icon="Plus" @click="showCreateDialog = true">
@@ -24,48 +23,48 @@
 
     <!-- 统计卡片 -->
     <div class="stats-section">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-card class="stat-card">
+      <el-row :gutter="12">
+        <el-col :span="3">
+          <el-card class="stat-card compact">
             <div class="stat-content">
               <div class="stat-number">{{ graphStats.totalNodes }}</div>
-              <div class="stat-label">节点总数</div>
+              <div class="stat-label">专业术语</div>
             </div>
             <div class="stat-icon nodes-icon">
-              <el-icon><Location /></el-icon>
+              <el-icon><TrendCharts /></el-icon>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card">
+        <el-col :span="3">
+          <el-card class="stat-card compact">
             <div class="stat-content">
               <div class="stat-number">{{ graphStats.totalEdges }}</div>
-              <div class="stat-label">关系总数</div>
+              <div class="stat-label">关联关系</div>
             </div>
             <div class="stat-icon edges-icon">
-              <el-icon><Connection /></el-icon>
+              <el-icon><WindPower /></el-icon>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card">
+        <el-col :span="3">
+          <el-card class="stat-card compact">
             <div class="stat-content">
               <div class="stat-number">{{ graphStats.totalGraphs }}</div>
-              <div class="stat-label">图谱数量</div>
+              <div class="stat-label">专业图谱</div>
             </div>
             <div class="stat-icon graphs-icon">
-              <el-icon><Share /></el-icon>
+              <el-icon><VideoPlay /></el-icon>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card">
+        <el-col :span="3">
+          <el-card class="stat-card compact">
             <div class="stat-content">
               <div class="stat-number">{{ graphStats.domains }}</div>
-              <div class="stat-label">涉及领域</div>
+              <div class="stat-label">技术领域</div>
             </div>
             <div class="stat-icon domains-icon">
-              <el-icon><Collection /></el-icon>
+              <el-icon><Tools /></el-icon>
             </div>
           </el-card>
         </el-col>
@@ -74,9 +73,9 @@
 
     <!-- 主要内容区域 -->
     <div class="main-content">
-      <el-row :gutter="20">
+      <el-row :gutter="16">
         <!-- 图谱列表 -->
-        <el-col :span="8">
+        <el-col :span="3">
           <el-card class="graph-list-card">
             <template #header>
               <div class="card-header">
@@ -100,7 +99,6 @@
               >
                 <div class="graph-info">
                   <div class="graph-name">{{ graph.name }}</div>
-                  <div class="graph-desc">{{ graph.description }}</div>
                   <div class="graph-meta">
                     <el-tag size="small" :type="getDomainColor(graph.domain)">
                       {{ graph.domain }}
@@ -118,7 +116,7 @@
         </el-col>
 
         <!-- 图谱可视化区域 -->
-        <el-col :span="16">
+        <el-col :span="21">
           <el-card class="graph-viewer-card">
             <template #header>
               <div class="card-header">
@@ -151,37 +149,101 @@
                 <!-- 使用简单的CSS和HTML来显示图谱 -->
                 <div class="simple-graph">
                   <h3>{{ selectedGraph.name }}</h3>
-                  <div class="graph-nodes">
-                    <div 
-                      v-for="node in currentNodes"
-                      :key="node.id"
-                      :class="['graph-node', node.category]"
-                      :style="getNodeStyle(node)"
-                      @mouseover="hoverNode = node"
-                      @mouseleave="hoverNode = null"
-                    >
-                      {{ node.name }}
+                  <div class="graph-visualization">
+                    <!-- 连线表示关系 -->
+                    <svg class="relation-lines" :width="graphWidth" :height="graphHeight">
+                      <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                                refX="9" refY="3.5" orient="auto">
+                          <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                        </marker>
+                      </defs>
+                      <line 
+                        v-for="edge in selectedGraph.edges"
+                        :key="edge.source + '-' + edge.target"
+                        :x1="getNodePosition(edge.source).x"
+                        :y1="getNodePosition(edge.source).y"
+                        :x2="getNodePosition(edge.target).x"
+                        :y2="getNodePosition(edge.target).y"
+                        stroke="#666" 
+                        stroke-width="2"
+                        marker-end="url(#arrowhead)"
+                      />
+                    </svg>
+                    
+                    <!-- 节点 -->
+                    <div class="graph-nodes">
+                      <div 
+                        v-for="node in currentNodes"
+                        :key="node.id"
+                        :class="['graph-node', node.category]"
+                        :style="getNodeStyle(node)"
+                        @mouseover="hoverNode = node"
+                        @mouseleave="hoverNode = null"
+                      >
+                        <div class="node-content">
+                          <div class="node-name">{{ node.name }}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                  
+                  <!-- 关系说明 -->
+                  <div class="relations-panel">
+                    <h4>主要关联关系</h4>
+                    <div class="relation-list">
+                      <div 
+                        v-for="edge in selectedGraph.edges.slice(0, 6)"
+                        :key="edge.source + '-' + edge.target"
+                        class="relation-item"
+                      >
+                        <span class="source-node">{{ getNodeById(edge.source)?.name }}</span>
+                        <span class="relation-arrow">→ {{ edge.relation }} →</span>
+                        <span class="target-node">{{ getNodeById(edge.target)?.name }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div class="graph-legend">
-                    <h4>图例</h4>
+                    <h4>专业类别</h4>
                     <div class="legend-item">
                       <span class="legend-color core"></span>
                       <span>核心概念</span>
                     </div>
                     <div class="legend-item">
-                      <span class="legend-color algorithm"></span>
-                      <span>算法技术</span>
+                      <span class="legend-color design"></span>
+                      <span>总体设计</span>
                     </div>
                     <div class="legend-item">
-                      <span class="legend-color application"></span>
-                      <span>应用领域</span>
+                      <span class="legend-color system"></span>
+                      <span>系统组成</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color structure"></span>
+                      <span>结构部件</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color performance"></span>
+                      <span>性能指标</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color theory"></span>
+                      <span>理论基础</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color analysis"></span>
+                      <span>分析方法</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color control"></span>
+                      <span>控制技术</span>
                     </div>
                   </div>
+                  
                   <div v-if="hoverNode" class="node-tooltip">
                     <strong>{{ hoverNode.name }}</strong><br>
-                    类别: {{ hoverNode.category }}<br>
-                    ID: {{ hoverNode.id }}
+                    类别: {{ getCategoryLabel(hoverNode.category) }}<br>
+                    专业领域: {{ selectedGraph.domain }}
                   </div>
                 </div>
               </div>
@@ -204,12 +266,12 @@
         </el-form-item>
         <el-form-item label="所属领域" prop="domain">
           <el-select v-model="graphForm.domain" placeholder="选择领域">
-            <el-option label="人工智能" value="人工智能" />
-            <el-option label="机器学习" value="机器学习" />
-            <el-option label="深度学习" value="深度学习" />
-            <el-option label="自然语言处理" value="自然语言处理" />
-            <el-option label="计算机视觉" value="计算机视觉" />
-            <el-option label="数据挖掘" value="数据挖掘" />
+            <el-option label="总体设计" value="总体设计" />
+            <el-option label="空气动力学" value="空气动力学" />
+            <el-option label="飞行控制" value="飞行控制" />
+            <el-option label="结构设计" value="结构设计" />
+            <el-option label="动力系统" value="动力系统" />
+            <el-option label="材料工艺" value="材料工艺" />
           </el-select>
         </el-form-item>
         <el-form-item label="描述信息" prop="description">
@@ -233,7 +295,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  Share, Location, Connection, Collection, Search, 
+  TrendCharts, VideoPlay, WindPower, Tools, Search, 
   Plus, Upload, Download, Edit, Delete, RefreshLeft, 
   Setting, Loading 
 } from '@element-plus/icons-vue'
@@ -248,12 +310,12 @@ const selectedGraph = ref<any>(null)
 const searchKeyword = ref('')
 const hoverNode = ref<any>(null)
 
-// 统计数据
+  // 统计数据
 const graphStats = reactive({
-  totalNodes: 1247,
-  totalEdges: 2356,
-  totalGraphs: 8,
-  domains: 6
+  totalNodes: 33,
+  totalEdges: 45,
+  totalGraphs: 3,
+  domains: 3
 })
 
 // 图谱表单
@@ -277,86 +339,114 @@ const formRules = {
   ]
 }
 
-// 重新生成知识图谱列表 - 使用更真实的数据
-const graphList = ref([
-  {
-    id: 1,
-    name: '人工智能知识体系',
-    description: '涵盖AI基础概念、算法、应用的完整知识体系',
-    domain: '人工智能',
-    nodeCount: 9,
-    nodes: [
-      { id: 'ai', name: '人工智能', category: 'core', symbolSize: 40, x: 50, y: 50 },
-      { id: 'ml', name: '机器学习', category: 'algorithm', symbolSize: 30, x: 20, y: 20 },
-      { id: 'dl', name: '深度学习', category: 'algorithm', symbolSize: 30, x: 80, y: 20 },
-      { id: 'nn', name: '神经网络', category: 'algorithm', symbolSize: 25, x: 35, y: 5 },
-      { id: 'cnn', name: 'CNN', category: 'algorithm', symbolSize: 20, x: 10, y: 5 },
-      { id: 'rnn', name: 'RNN', category: 'algorithm', symbolSize: 20, x: 60, y: 5 },
-      { id: 'nlp', name: 'NLP', category: 'application', symbolSize: 25, x: 20, y: 80 },
-      { id: 'cv', name: 'CV', category: 'application', symbolSize: 25, x: 80, y: 80 },
-      { id: 'robotics', name: '机器人学', category: 'application', symbolSize: 20, x: 50, y: 95 }
-    ],
-    edges: [
-      { source: 'ai', target: 'ml', relation: '包含' },
-      { source: 'ai', target: 'dl', relation: '包含' },
-      { source: 'ml', target: 'dl', relation: '发展为' },
-      { source: 'dl', target: 'nn', relation: '基于' },
-      { source: 'nn', target: 'cnn', relation: '包含' },
-      { source: 'nn', target: 'rnn', relation: '包含' },
-      { source: 'ai', target: 'nlp', relation: '应用于' },
-      { source: 'ai', target: 'cv', relation: '应用于' },
-      { source: 'ai', target: 'robotics', relation: '应用于' }
-    ]
-  },
-  {
-    id: 2,
-    name: '机器学习算法图谱',
-    description: '各种机器学习算法的分类和关系图谱',
-    domain: '机器学习',
-    nodeCount: 6,
-    nodes: [
-      { id: 'ml', name: '机器学习', category: 'core', symbolSize: 35, x: 50, y: 50 },
-      { id: 'supervised', name: '监督学习', category: 'algorithm', symbolSize: 25, x: 20, y: 25 },
-      { id: 'unsupervised', name: '无监督学习', category: 'algorithm', symbolSize: 25, x: 80, y: 25 },
-      { id: 'regression', name: '回归', category: 'method', symbolSize: 20, x: 5, y: 5 },
-      { id: 'classification', name: '分类', category: 'method', symbolSize: 20, x: 35, y: 5 },
-      { id: 'clustering', name: '聚类', category: 'method', symbolSize: 20, x: 65, y: 5 }
-    ],
-    edges: [
-      { source: 'ml', target: 'supervised', relation: '包含' },
-      { source: 'ml', target: 'unsupervised', relation: '包含' },
-      { source: 'supervised', target: 'regression', relation: '包含' },
-      { source: 'supervised', target: 'classification', relation: '包含' },
-      { source: 'unsupervised', target: 'clustering', relation: '包含' }
-    ]
-  },
-  {
-    id: 3,
-    name: '深度学习框架生态',
-    description: '主流深度学习框架及其生态系统',
-    domain: '深度学习',
-    nodeCount: 7,
-    nodes: [
-      { id: 'dl', name: '深度学习', category: 'core', symbolSize: 35, x: 50, y: 50 },
-      { id: 'tensorflow', name: 'TensorFlow', category: 'framework', symbolSize: 25, x: 20, y: 25 },
-      { id: 'pytorch', name: 'PyTorch', category: 'framework', symbolSize: 25, x: 80, y: 25 },
-      { id: 'keras', name: 'Keras', category: 'framework', symbolSize: 20, x: 5, y: 5 },
-      { id: 'mxnet', name: 'MXNet', category: 'framework', symbolSize: 20, x: 35, y: 5 },
-      { id: 'caffe', name: 'Caffe', category: 'framework', symbolSize: 20, x: 65, y: 5 },
-      { id: 'theano', name: 'Theano', category: 'framework', symbolSize: 15, x: 50, y: 5 }
-    ],
-    edges: [
-      { source: 'dl', target: 'tensorflow', relation: '使用' },
-      { source: 'dl', target: 'pytorch', relation: '使用' },
-      { source: 'tensorflow', target: 'keras', relation: '包含' },
-      { source: 'tensorflow', target: 'mxnet', relation: '竞争' },
-      { source: 'pytorch', target: 'caffe', relation: '替代' }
-    ]
-  }
-])
+  // 直升机专业知识图谱数据
+  const graphList = ref([
+    {
+      id: 1,
+      name: '直升机总体设计知识图谱',
+      description: '涵盖直升机总体构型、系统设计、性能分析等核心技术知识',
+      domain: '总体设计',
+      nodeCount: 12,
+      nodes: [
+        { id: 'helicopter', name: '直升机', category: 'core', symbolSize: 45, x: 50, y: 50 },
+        { id: 'configuration', name: '总体构型', category: 'design', symbolSize: 35, x: 25, y: 25 },
+        { id: 'rotorsystem', name: '旋翼系统', category: 'system', symbolSize: 35, x: 75, y: 25 },
+        { id: 'transmissionsys', name: '传动系统', category: 'system', symbolSize: 30, x: 15, y: 45 },
+        { id: 'fuselage', name: '机体结构', category: 'structure', symbolSize: 30, x: 85, y: 45 },
+        { id: 'tailrotor', name: '尾桨系统', category: 'system', symbolSize: 25, x: 90, y: 15 },
+        { id: 'landinggear', name: '起落架', category: 'system', symbolSize: 25, x: 10, y: 65 },
+        { id: 'powerplant', name: '动力装置', category: 'system', symbolSize: 30, x: 40, y: 75 },
+        { id: 'flightcontrol', name: '飞控系统', category: 'system', symbolSize: 30, x: 60, y: 75 },
+        { id: 'weightbalance', name: '重量重心', category: 'performance', symbolSize: 25, x: 25, y: 85 },
+        { id: 'stability', name: '稳定性', category: 'performance', symbolSize: 25, x: 50, y: 85 },
+        { id: 'maneuverability', name: '操纵性', category: 'performance', symbolSize: 25, x: 75, y: 85 }
+      ],
+      edges: [
+        { source: 'helicopter', target: 'configuration', relation: '采用' },
+        { source: 'helicopter', target: 'rotorsystem', relation: '配备' },
+        { source: 'helicopter', target: 'transmissionsys', relation: '包含' },
+        { source: 'helicopter', target: 'fuselage', relation: '具有' },
+        { source: 'helicopter', target: 'tailrotor', relation: '配置' },
+        { source: 'helicopter', target: 'landinggear', relation: '安装' },
+        { source: 'helicopter', target: 'powerplant', relation: '搭载' },
+        { source: 'helicopter', target: 'flightcontrol', relation: '集成' },
+        { source: 'configuration', target: 'rotorsystem', relation: '决定' },
+        { source: 'rotorsystem', target: 'tailrotor', relation: '协同' },
+        { source: 'transmissionsys', target: 'powerplant', relation: '传递' },
+        { source: 'weightbalance', target: 'stability', relation: '影响' },
+        { source: 'stability', target: 'maneuverability', relation: '关联' }
+      ]
+    },
+    {
+      id: 2,
+      name: '旋翼空气动力学知识图谱',
+      description: '直升机旋翼空气动力学理论与分析方法知识体系',
+      domain: '空气动力学',
+      nodeCount: 10,
+      nodes: [
+        { id: 'rotoraero', name: '旋翼空气动力学', category: 'core', symbolSize: 40, x: 50, y: 50 },
+        { id: 'bladetheory', name: '叶素理论', category: 'theory', symbolSize: 30, x: 20, y: 20 },
+        { id: 'vortextheory', name: '涡流理论', category: 'theory', symbolSize: 30, x: 80, y: 20 },
+        { id: 'inducedvelocity', name: '诱导速度', category: 'analysis', symbolSize: 30, x: 50, y: 20 },
+        { id: 'liftgeneration', name: '升力产生', category: 'mechanism', symbolSize: 25, x: 10, y: 40 },
+        { id: 'draganalysis', name: '阻力分析', category: 'analysis', symbolSize: 25, x: 35, y: 40 },
+        { id: 'torqueanalysis', name: '扭矩分析', category: 'analysis', symbolSize: 25, x: 65, y: 40 },
+        { id: 'loadanalysis', name: '载荷分析', category: 'analysis', symbolSize: 25, x: 90, y: 40 },
+        { id: 'compressibility', name: '压缩性效应', category: 'phenomenon', symbolSize: 20, x: 30, y: 70 },
+        { id: 'groundeffect', name: '地面效应', category: 'phenomenon', symbolSize: 20, x: 70, y: 70 }
+      ],
+      edges: [
+        { source: 'rotoraero', target: 'bladetheory', relation: '基于' },
+        { source: 'rotoraero', target: 'vortextheory', relation: '基于' },
+        { source: 'rotoraero', target: 'inducedvelocity', relation: '研究' },
+        { source: 'bladetheory', target: 'liftgeneration', relation: '解释' },
+        { source: 'bladetheory', target: 'draganalysis', relation: '分析' },
+        { source: 'vortextheory', target: 'torqueanalysis', relation: '预测' },
+        { source: 'vortextheory', target: 'loadanalysis', relation: '计算' },
+        { source: 'inducedvelocity', target: 'liftgeneration', relation: '影响' },
+        { source: 'compressibility', target: 'rotoraero', relation: '修正' },
+        { source: 'groundeffect', target: 'rotoraero', relation: '影响' }
+      ]
+    },
+    {
+      id: 3,
+      name: '飞行力学与控制知识图谱',
+      description: '直升机飞行力学特性与飞行控制系统专业知识体系',
+      domain: '飞行控制',
+      nodeCount: 11,
+      nodes: [
+        { id: 'flightmechanics', name: '飞行力学', category: 'core', symbolSize: 40, x: 50, y: 50 },
+        { id: 'motioneq', name: '运动方程', category: 'theory', symbolSize: 30, x: 25, y: 25 },
+        { id: 'stabilityderiv', name: '稳定性导数', category: 'analysis', symbolSize: 30, x: 75, y: 25 },
+        { id: 'controlsys', name: '控制系统', category: 'system', symbolSize: 35, x: 50, y: 25 },
+        { id: 'flightenvelope', name: '飞行包线', category: 'performance', symbolSize: 30, x: 15, y: 50 },
+        { id: 'handlingquals', name: '操纵品质', category: 'performance', symbolSize: 25, x: 85, y: 50 },
+        { id: 'autostab', name: '自动稳定', category: 'control', symbolSize: 25, x: 30, y: 75 },
+        { id: 'attitudecontrol', name: '姿态控制', category: 'control', symbolSize: 25, x: 50, y: 75 },
+        { id: 'trajectorycontrol', name: '轨迹控制', category: 'control', symbolSize: 25, x: 70, y: 75 },
+        { id: 'vibrationcontrol', name: '振动控制', category: 'control', symbolSize: 20, x: 40, y: 90 },
+        { id: 'flighttest', name: '飞行试验', category: 'validation', symbolSize: 20, x: 60, y: 90 }
+      ],
+      edges: [
+        { source: 'flightmechanics', target: 'motioneq', relation: '建立' },
+        { source: 'flightmechanics', target: 'stabilityderiv', relation: '分析' },
+        { source: 'flightmechanics', target: 'controlsys', relation: '设计' },
+        { source: 'motioneq', target: 'flightenvelope', relation: '描述' },
+        { source: 'stabilityderiv', target: 'handlingquals', relation: '评价' },
+        { source: 'controlsys', target: 'autostab', relation: '实现' },
+        { source: 'controlsys', target: 'attitudecontrol', relation: '执行' },
+        { source: 'controlsys', target: 'trajectorycontrol', relation: '执行' },
+        { source: 'autostab', target: 'vibrationcontrol', relation: '抑制' },
+        { source: 'flightenvelope', target: 'flighttest', relation: '验证' },
+        { source: 'handlingquals', target: 'flighttest', relation: '评估' }
+      ]
+    }
+  ])
 
-// 当前显示的节点
+  // 当前显示的节点和相关数据
 const currentNodes = ref([])
+const graphWidth = 800
+const graphHeight = 400
 
 // 计算属性
 const filteredGraphs = computed(() => {
@@ -383,11 +473,17 @@ const selectGraph = (graph: any) => {
 
 const getNodeStyle = (node: any) => {
   const colors = {
-    core: '#ff6b6b',
-    algorithm: '#4ecdc4',
-    application: '#45b7d1',
-    method: '#f7b731',
-    framework: '#5f27cd'
+    core: '#e74c3c',
+    design: '#3498db',
+    system: '#2ecc71',
+    structure: '#f39c12',
+    performance: '#9b59b6',
+    theory: '#1abc9c',
+    analysis: '#e67e22',
+    mechanism: '#34495e',
+    phenomenon: '#e91e63',
+    control: '#27ae60',
+    validation: '#8e44ad'
   }
   
   return {
@@ -416,6 +512,41 @@ const refreshGraph = () => {
     selectGraph(selectedGraph.value)
     ElMessage.success('图谱已刷新')
   }
+}
+
+// 获取节点位置
+const getNodePosition = (nodeId) => {
+  const node = currentNodes.value.find(n => n.id === nodeId)
+  if (!node) return { x: 0, y: 0 }
+  
+  // 将百分比转换为实际像素坐标
+  return {
+    x: (node.x / 100) * graphWidth,
+    y: (node.y / 100) * graphHeight
+  }
+}
+
+// 根据ID获取节点
+const getNodeById = (nodeId) => {
+  return currentNodes.value.find(n => n.id === nodeId)
+}
+
+// 获取类别标签
+const getCategoryLabel = (category) => {
+  const labels = {
+    core: '核心概念',
+    design: '总体设计',
+    system: '系统组成',
+    structure: '结构部件',
+    performance: '性能指标',
+    theory: '理论基础',
+    analysis: '分析方法',
+    mechanism: '作用机理',
+    phenomenon: '物理现象',
+    control: '控制技术',
+    validation: '试验验证'
+  }
+  return labels[category] || category
 }
 
 const editGraph = (graph: any) => {
@@ -552,11 +683,7 @@ onMounted(() => {
   color: #409eff;
 }
 
-.page-subtitle {
-  margin: 5px 0 0 0;
-  color: #909399;
-  font-size: 14px;
-}
+
 
 .header-actions {
   display: flex;
@@ -575,35 +702,46 @@ onMounted(() => {
 .stat-content {
   position: relative;
   z-index: 2;
+  padding: 8px 12px;
 }
 
 .stat-number {
-  font-size: 32px;
+  font-size: 20px;
   font-weight: bold;
   color: #303133;
   line-height: 1;
+  margin-bottom: 2px;
 }
 
 .stat-label {
-  margin-top: 8px;
+  margin-top: 0;
   color: #909399;
-  font-size: 14px;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .stat-icon {
   position: absolute;
-  right: 20px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 40px;
-  opacity: 0.3;
+  font-size: 24px;
+  opacity: 0.4;
   z-index: 1;
 }
 
-.nodes-icon { color: #409eff; }
-.edges-icon { color: #67c23a; }
-.graphs-icon { color: #e6a23c; }
-.domains-icon { color: #f56c6c; }
+.stat-card.compact {
+  min-height: 70px;
+}
+
+.stat-card.compact .el-card__body {
+  padding: 12px 16px !important;
+}
+
+.nodes-icon { color: #e74c3c; }
+.edges-icon { color: #27ae60; }
+.graphs-icon { color: #3498db; }
+.domains-icon { color: #f39c12; }
 
 .main-content {
   height: calc(100vh - 300px);
@@ -655,16 +793,7 @@ onMounted(() => {
   margin-bottom: 5px;
 }
 
-.graph-desc {
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 8px;
-  line-height: 1.4;
-}
 
-.graph-item.active .graph-desc {
-  color: rgba(255,255,255,0.8);
-}
 
 .graph-meta {
   display: flex;
@@ -750,15 +879,127 @@ onMounted(() => {
 .simple-graph {
   height: 100%;
   position: relative;
-  background: #fafafa;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+  border-radius: 12px;
   padding: 20px;
+  border: 2px solid #e3e8ff;
 }
 
 .simple-graph h3 {
   text-align: center;
-  margin-bottom: 30px;
-  color: #303133;
+  margin-bottom: 15px;
+  color: #1e40af;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+
+
+.graph-visualization {
+  position: relative;
+  height: 300px;
+  margin-bottom: 20px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: white;
+}
+
+.relation-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.graph-nodes {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.graph-node {
+  position: absolute;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(4px);
+}
+
+.graph-node:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  z-index: 10;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+}
+
+.node-content {
+  text-align: center;
+  padding: 4px 8px;
+}
+
+.node-name {
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  line-height: 1.2;
+}
+
+.relations-panel {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-left: 4px solid #3b82f6;
+}
+
+.relations-panel h4 {
+  margin: 0 0 10px 0;
+  color: #1e40af;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.relation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.relation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.source-node {
+  color: #dc2626;
+  font-weight: bold;
+  background: #fef2f2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.relation-arrow {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.target-node {
+  color: #059669;
+  font-weight: bold;
+  background: #f0fdf4;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .graph-nodes {
@@ -816,20 +1057,21 @@ onMounted(() => {
   padding: 15px;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  min-width: 120px;
+  min-width: 140px;
 }
 
 .graph-legend h4 {
-  margin: 0 0 10px 0;
+  margin: 0 0 12px 0;
   font-size: 14px;
   color: #303133;
+  font-weight: bold;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
   font-size: 12px;
 }
 
@@ -839,11 +1081,15 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.legend-color.core { background: #ff6b6b; }
-.legend-color.algorithm { background: #4ecdc4; }
-.legend-color.application { background: #45b7d1; }
-.legend-color.method { background: #f7b731; }
-.legend-color.framework { background: #5f27cd; }
+.legend-color.core { background: #e74c3c; }
+.legend-color.design { background: #3498db; }
+.legend-color.system { background: #2ecc71; }
+.legend-color.structure { background: #f39c12; }
+.legend-color.performance { background: #9b59b6; }
+.legend-color.theory { background: #1abc9c; }
+.legend-color.analysis { background: #e67e22; }
+.legend-color.control { background: #27ae60; }
+.legend-color.validation { background: #8e44ad; }
 
 .node-tooltip {
   position: absolute;
