@@ -136,3 +136,32 @@ export function DocumentUpload(data: FormData) {
         },
     });
 }
+
+/**
+ * 生成PPT
+ */
+export function GeneratePPT(data: {
+    text: string;
+    theme: string;
+    slide_count: number;
+    include_charts: boolean;
+    language: string;
+}) {
+    return request({
+        url: apiPrefix + 'generate_ppt/',
+        method: 'post',
+        data: data,
+    });
+}
+
+/**
+ * 下载PPT文件
+ */
+export function DownloadPPT(file_path: string) {
+    return request({
+        url: apiPrefix + 'ppt/download/',
+        method: 'get',
+        params: { file_path },
+        responseType: 'blob',
+    });
+}

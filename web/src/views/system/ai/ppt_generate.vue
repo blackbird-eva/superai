@@ -254,6 +254,7 @@ import {
   View, Download, ZoomIn, Loading, Picture, Edit, Share,
   Check, Clock, Star
 } from '@element-plus/icons-vue'
+import { GeneratePPT, DownloadPPT } from './api'
 
 // 响应式数据
 const fileList = ref([])
@@ -265,6 +266,8 @@ const slideDetailVisible = ref(false)
 const selectedSlide = ref(null)
 const generationProgress = ref(0)
 const generationStatus = ref('')
+const pptFilePath = ref('')
+const pptFileName = ref('')
 
 // 生成选项
 const generateOptions = reactive({
@@ -305,7 +308,7 @@ const generatePPT = async () => {
 
   isGenerating.value = true
   generationProgress.value = 0
-  
+
   try {
     // 重置进度步骤
     progressSteps.value.forEach(step => {
@@ -316,12 +319,46 @@ const generatePPT = async () => {
     // 模拟生成过程
     await simulateGenerationProcess()
 
-    // 生成PPT数据
-    generatedPPT.value = generateMockPPT()
-    
+    // 准备请求数据
+    const requestData = {
+      text: inputText.value,
+      theme: generateOptions.theme,
+      slide_count: generateOptions.slideCount,
+      include_charts: generateOptions.includeCharts,
+      language: generateOptions.language
+    }
+
+    // 如果有文件上传，可以使用文件内容
+    if (fileList.value.length > 0) {
+      // 这里可以扩展文件处理逻辑
+      ElMessage.warning('文件上传功能开发中，请使用文本输入')
+      isGenerating.value = false
+      return
+    }
+
+    // 调用API生成PPT
+    const response = await GeneratePPT(requestData)
+
+    // 保存生成的PPT数据和文件信息
+    generatedPPT.value = {
+      title: response.data.title,
+      description: response.data.description,
+      theme: response.data.theme,
+      slideCount: response.data.slide_count,
+      createTime: response.data.create_time,
+      slides: response.data.slides
+    }
+
+    // 保存PPT文件路径，用于下载
+    if (response.data.ppt_file_path) {
+      pptFilePath.value = response.data.ppt_file_path
+      pptFileName.value = response.data.ppt_file_name
+    }
+
     ElMessage.success('PPT生成成功！')
-  } catch (error) {
-    ElMessage.error('PPT生成失败，请重试')
+  } catch (error: any) {
+    console.error('PPT生成失败:', error)
+    ElMessage.error(error.response?.data?.msg || 'PPT生成失败，请重试')
   } finally {
     isGenerating.value = false
     generationProgress.value = 100
@@ -422,15 +459,37 @@ const generateMockPPT = () => {
 
 // 下载PPT
 const downloadPPT = async () => {
+  if (!pptFilePath.value) {
+    ElMessage.warning('请先生成PPT')
+    return
+  }
+
   isDownloading.value = true
-  
+
   try {
-    // 模拟下载过程
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // 这里应该调用实际的下载API
-    ElMessage.success('PPT下载已开始，请查看浏览器下载列表')
-  } catch (error) {
+    // 调用下载API
+    const response = await DownloadPPT(pptFilePath.value)
+
+    // 创建Blob和下载链接
+    const blob = new Blob([response], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    })
+
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = pptFileName.value || `AI生成PPT_${new Date().getTime()}.pptx`
+
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(link)
+
+    ElMessage.success('PPT下载成功！')
+  } catch (error: any) {
+    console.error('下载失败:', error)
     ElMessage.error('下载失败，请重试')
   } finally {
     isDownloading.value = false

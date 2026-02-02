@@ -1563,3 +1563,223 @@ class Transdicts(CoreModel):
         verbose_name = "翻译字典"
         verbose_name_plural = verbose_name
         ordering = ("-create_datetime",)
+
+
+def pptfile_upload_path(instance, filename):
+    """
+    PPT文件上传路径生成函数
+    """
+    ext = filename.split('.')[-1]
+    unique_filename = f"{uuid.uuid4().hex}.{ext}"
+
+    # 按日期组织目录结构
+    from datetime import datetime
+    date_path = datetime.now().strftime('%Y/%m/%d')
+
+    return f'ppt/{date_path}/{unique_filename}'
+
+
+class PPTFile(CoreModel):
+    """
+    PPT文件管理模型 - 用于存储上传的网页内容和生成的PPT文件
+    """
+    # PPT基本信息
+    title = models.CharField(
+        max_length=500,
+        verbose_name="PPT标题",
+        help_text="演示文稿标题"
+    )
+
+    original_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="原始文件名",
+        help_text="上传的原始文件名"
+    )
+
+    # 文件信息
+    file_path = models.FileField(
+        upload_to=pptfile_upload_path,
+        blank=True,
+        null=True,
+        verbose_name="PPT文件路径",
+        help_text="生成的PPT文件存储路径"
+    )
+
+    file_size = models.IntegerField(
+        default=0,
+        verbose_name="文件大小",
+        help_text="PPT文件大小(字节)"
+    )
+
+    # 内容相关
+    source_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('text', '文本输入'),
+            ('file', '文件上传'),
+            ('web', '网页抓取')
+        ],
+        default='text',
+        verbose_name="来源类型",
+        help_text="内容来源方式"
+    )
+
+    source_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        verbose_name="来源URL",
+        help_text="网页抓取时的URL地址"
+    )
+
+    content_text = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="原始内容",
+        help_text="用于生成PPT的原始文本内容"
+    )
+
+    content_summary = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="内容摘要",
+        help_text="内容简要描述"
+    )
+
+    # PPT生成参数
+    theme = models.CharField(
+        max_length=20,
+        choices=[
+            ('business', '商务简约'),
+            ('tech', '科技现代'),
+            ('education', '教育培训'),
+            ('creative', '创意活泼'),
+            ('academic', '学术正式')
+        ],
+        default='business',
+        verbose_name="主题风格",
+        help_text="PPT主题风格"
+    )
+
+    slide_count = models.IntegerField(
+        default=10,
+        verbose_name="幻灯片数量",
+        help_text="生成的幻灯片数量"
+    )
+
+    include_charts = models.BooleanField(
+        default=True,
+        verbose_name="包含图表",
+        help_text="是否包含数据图表"
+    )
+
+    language = models.CharField(
+        max_length=10,
+        choices=[
+            ('zh', '中文'),
+            ('en', '英文')
+        ],
+        default='zh',
+        verbose_name="语言",
+        help_text="PPT语言"
+    )
+
+    # 生成状态
+    GENERATION_STATUS = [
+        ('pending', '待生成'),
+        ('processing', '生成中'),
+        ('completed', '生成完成'),
+        ('failed', '生成失败')
+    ]
+
+    status = models.CharField(
+        max_length=20,
+        choices=GENERATION_STATUS,
+        default='pending',
+        verbose_name="生成状态",
+        help_text="PPT生成状态"
+    )
+
+    # 统计信息
+    view_count = models.IntegerField(
+        default=0,
+        verbose_name="查看次数",
+        help_text="PPT查看次数"
+    )
+
+    download_count = models.IntegerField(
+        default=0,
+        verbose_name="下载次数",
+        help_text="PPT下载次数"
+    )
+
+    # 分享设置
+    is_public = models.BooleanField(
+        default=False,
+        verbose_name="公开分享",
+        help_text="是否允许公开分享"
+    )
+
+    share_code = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        unique=True,
+        verbose_name="分享码",
+        help_text="分享唯一标识码"
+    )
+
+    # 标签和分类
+    tags = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name="标签",
+        help_text="PPT标签列表(JSON格式)"
+    )
+
+    category = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="分类",
+        help_text="PPT分类"
+    )
+
+    # 额外信息
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="错误信息",
+        help_text="生成失败时的错误信息"
+    )
+
+    preview_data = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name="预览数据",
+        help_text="PPT预览信息(JSON格式)"
+    )
+
+    def generate_share_code(self):
+        """生成分享码"""
+        import hashlib
+        import random
+        code = hashlib.md5(f"{self.id}{random.random()}".encode()).hexdigest()[:16]
+        return code
+
+    def save(self, *args, **kwargs):
+        # 保存前生成分享码
+        if not self.share_code:
+            self.share_code = self.generate_share_code()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        db_table = table_prefix + "pptfile"
+        verbose_name = "PPT文件管理"
+        verbose_name_plural = verbose_name
+        ordering = ("-create_datetime",)

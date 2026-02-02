@@ -3,7 +3,7 @@
 翻译字典和文档翻译序列化器
 """
 from rest_framework import serializers
-from dvadmin.system.models import Transdicts, Docxfile
+from dvadmin.system.models import Transdicts, Docxfile, PPTFile
 from dvadmin.utils.serializers import CustomModelSerializer
 
 
@@ -377,3 +377,151 @@ class DocxfileViewSet(CustomModelViewSet):
                 'type_statistics': type_stats
             }
         })
+
+
+# ============================================
+# PPTFile 序列化器
+# ============================================
+
+class PPTFileSerializer(CustomModelSerializer):
+    """
+    PPTFile 完整序列化器
+    """
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    source_type_display = serializers.CharField(source='get_source_type_display', read_only=True)
+    theme_display = serializers.CharField(source='get_theme_display', read_only=True)
+    language_display = serializers.CharField(source='get_language_display', read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    def get_file_url(self, obj):
+        """获取文件下载URL"""
+        if obj.file_path:
+            return f'/api/system/pptfile/{obj.id}/download/'
+        return None
+
+    class Meta:
+        model = PPTFile
+        fields = """
+        id, title, original_name, file_path, file_url, file_size,
+        source_type, source_type_display, source_url,
+        content_text, content_summary,
+        theme, theme_display, slide_count, include_charts, language, language_display,
+        status, status_display,
+        view_count, download_count,
+        is_public, share_code,
+        tags, category,
+        error_message, preview_data,
+        create_datetime, update_datetime
+        """
+        read_only_fields = [
+            "id", "create_datetime", "update_datetime",
+            "file_size", "status", "share_code", "view_count", "download_count"
+        ]
+
+
+class PPTFileCreateSerializer(CustomModelSerializer):
+    """
+    PPTFile 创建序列化器
+    """
+
+    def validate_title(self, value):
+        """验证标题"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("PPT标题不能为空")
+        if len(value) > 500:
+            raise serializers.ValidationError("PPT标题不能超过500个字符")
+        return value.strip()
+
+    def validate_content_text(self, value):
+        """验证内容文本长度"""
+        if value and len(value) > 50000:
+            raise serializers.ValidationError("内容文本不能超过50000个字符")
+        return value
+
+    def validate_content_summary(self, value):
+        """验证内容摘要长度"""
+        if value and len(value) > 2000:
+            raise serializers.ValidationError("内容摘要不能超过2000个字符")
+        return value
+
+    def validate_slide_count(self, value):
+        """验证幻灯片数量"""
+        if not (5 <= value <= 30):
+            raise serializers.ValidationError("幻灯片数量必须在5-30之间")
+        return value
+
+    def validate_source_url(self, value):
+        """验证URL"""
+        if value:
+            from urllib.parse import urlparse
+            try:
+                result = urlparse(value)
+                if not all([result.scheme, result.netloc]):
+                    raise serializers.ValidationError("URL格式不正确")
+            except Exception:
+                raise serializers.ValidationError("URL格式不正确")
+        return value
+
+    class Meta:
+        model = PPTFile
+        fields = """
+        title, original_name,
+        source_type, source_url,
+        content_text, content_summary,
+        theme, slide_count, include_charts, language,
+        tags, category, is_public
+        """
+
+
+class PPTFileUpdateSerializer(CustomModelSerializer):
+    """
+    PPTFile 更新序列化器
+    """
+
+    def validate_title(self, value):
+        """验证标题"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("PPT标题不能为空")
+        if len(value) > 500:
+            raise serializers.ValidationError("PPT标题不能超过500个字符")
+        return value.strip()
+
+    def validate_content_summary(self, value):
+        """验证内容摘要长度"""
+        if value and len(value) > 2000:
+            raise serializers.ValidationError("内容摘要不能超过2000个字符")
+        return value
+
+    class Meta:
+        model = PPTFile
+        fields = """
+        title, content_summary,
+        theme, slide_count, include_charts, language,
+        tags, category, is_public
+        """
+
+
+class PPTFileListSerializer(CustomModelSerializer):
+    """
+    PPTFile 列表序列化器（精简版）
+    """
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    theme_display = serializers.CharField(source='get_theme_display', read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    def get_file_url(self, obj):
+        """获取文件下载URL"""
+        if obj.file_path:
+            return f'/api/system/pptfile/{obj.id}/download/'
+        return None
+
+    class Meta:
+        model = PPTFile
+        fields = """
+        id, title, original_name, file_url, file_size,
+        theme, theme_display, slide_count,
+        status, status_display,
+        view_count, download_count, is_public,
+        tags, category,
+        create_datetime
+        """
