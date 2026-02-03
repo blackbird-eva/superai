@@ -34,7 +34,7 @@ class genPPT():
         """
         from pptx import Presentation
         from pptx.util import Pt, Inches
-        from pptx.enum.text import PP_ALIGN
+        from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
         from pptx.dml.color import RGBColor
         from pptx.enum.shapes import MSO_SHAPE
         import platform
@@ -186,12 +186,223 @@ class genPPT():
                 note = notes_slide.notes_text_frame
                 note.text = "封面页：演示PPT的主标题和基本信息。"
 
-        # ===================== 2. 创建目录页（版式6：空白页，自由布局） =====================
-    
+        # ===================== 2. 调用大模型生成智能内容 =====================
+        # 使用大模型分析文本内容，生成结构化的PPT内容
+        ai_generated_content = self.generate_content_with_ai(text_content, theme, slide_count, paragraphs)
+        
+        # ===================== 3. 根据AI生成的内容创建幻灯片 =====================
+        for slide_idx, slide_data in enumerate(ai_generated_content['slides']):
+            if slide_idx >= slide_count - 2:  # 预留封面和结束页
+                break
+                
+            blank_layout = prs.slide_layouts[6]  # 空白页
+            slide = prs.slides.add_slide(blank_layout)
 
-        ## 
+            # 设置背景色
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = theme_colors['bg_color']
 
-        # ===================== 6. 保存PPT文件 =====================
+            # 添加标题背景框
+            title_box = slide.shapes.add_shape(
+                MSO_SHAPE.ROUNDED_RECTANGLE,
+                Inches(0.5), Inches(0.3), Inches(9), Inches(0.9)
+            )
+            title_box.fill.solid()
+            title_box.fill.fore_color.rgb = theme_colors['primary_color']
+            title_box.line.fill.background()
+
+            # 设置幻灯片标题
+            slide_title = slide_data.get('title', f'内容 {slide_idx + 1}')
+            title_text_frame = title_box.text_frame
+            title_text_frame.text = slide_title
+            title_paragraph = title_text_frame.paragraphs[0]
+            title_paragraph.font.name = font_name
+            title_paragraph.font.size = Pt(28)
+            title_paragraph.font.bold = True
+            title_paragraph.font.color.rgb = RGBColor(255, 255, 255)
+            title_paragraph.alignment = PP_ALIGN.CENTER
+
+            # 根据内容类型选择布局
+            content_type = slide_data.get('type', 'text')
+            
+            if content_type == 'bullet_points':
+                # 要点列表布局（参考pptdemo.py第76-100行）
+                content_box = slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(3.8))
+                content_frame = content_box.text_frame
+                content_frame.word_wrap = True
+
+                bullets = slide_data.get('content', [])
+                for j, bullet in enumerate(bullets[:6]):  # 最多6个要点
+                    if j > 0:
+                        p = content_frame.add_paragraph()
+                    else:
+                        p = content_frame.paragraphs[0]
+                    p.text = f"• {bullet}"
+                    p.level = 0
+                    p.font.name = font_name
+                    p.font.size = Pt(18)
+                    p.font.color.rgb = theme_colors['text_color']
+                    p.space_before = Pt(12)
+                    p.space_after = Pt(6)
+                    
+            elif content_type == 'two_column':
+                # 双栏布局（参考pptdemo.py第149-197行）
+                # 左栏
+                left_box = slide.shapes.add_shape(
+                    MSO_SHAPE.ROUNDED_RECTANGLE,
+                    Inches(0.7), Inches(1.5), Inches(4), Inches(3.5)
+                )
+                left_box.fill.solid()
+                left_box.fill.fore_color.rgb = theme_colors['secondary_color']
+                left_box.line.fill.background()
+
+                left_title = slide_data.get('left_title', '要点')
+                left_content = slide_data.get('left_content', [])
+                
+                left_frame = left_box.text_frame
+                left_frame.text = left_title
+                left_para = left_frame.paragraphs[0]
+                left_para.font.name = font_name
+                left_para.font.size = Pt(20)
+                left_para.font.bold = True
+                left_para.font.color.rgb = theme_colors['primary_color']
+                left_para.alignment = PP_ALIGN.CENTER
+                
+                for item in left_content[:4]:
+                    p = left_frame.add_paragraph()
+                    p.text = f"• {item}"
+                    p.font.name = font_name
+                    p.font.size = Pt(16)
+                    p.font.color.rgb = theme_colors['text_color']
+                    p.space_before = Pt(8)
+
+                # 右栏
+                right_box = slide.shapes.add_shape(
+                    MSO_SHAPE.ROUNDED_RECTANGLE,
+                    Inches(5.3), Inches(1.5), Inches(4), Inches(3.5)
+                )
+                right_box.fill.solid()
+                right_box.fill.fore_color.rgb = theme_colors['secondary_color']
+                right_box.line.fill.background()
+
+                right_title = slide_data.get('right_title', '详情')
+                right_content = slide_data.get('right_content', [])
+                
+                right_frame = right_box.text_frame
+                right_frame.text = right_title
+                right_para = right_frame.paragraphs[0]
+                right_para.font.name = font_name
+                right_para.font.size = Pt(20)
+                right_para.font.bold = True
+                right_para.font.color.rgb = theme_colors['accent_color']
+                right_para.alignment = PP_ALIGN.CENTER
+                
+                for item in right_content[:4]:
+                    p = right_frame.add_paragraph()
+                    p.text = f"• {item}"
+                    p.font.name = font_name
+                    p.font.size = Pt(16)
+                    p.font.color.rgb = theme_colors['text_color']
+                    p.space_before = Pt(8)
+                    
+            elif content_type == 'chart' and include_charts:
+                # 图表页（参考pptdemo.py第101-135行）
+                try:
+                    from pptx.chart.data import CategoryChartData
+                    from pptx.enum.chart import XL_CHART_TYPE
+                    
+                    # 获取图表数据
+                    chart_info = slide_data.get('chart_data', {})
+                    categories = chart_info.get('categories', [])
+                    values = chart_info.get('values', [])
+                    
+                    if categories and values:
+                        chart_data = CategoryChartData()
+                        chart_data.categories = categories
+                        chart_data.add_series('数据', values)
+
+                        # 添加柱状图
+                        x, y, cx, cy = Inches(1), Inches(1.8), Inches(8), Inches(3)
+                        chart = slide.shapes.add_chart(
+                            XL_CHART_TYPE.COLUMN_CLUSTERED, x, y, cx, cy, chart_data
+                        ).chart
+
+                        # 设置图表样式
+                        chart.has_legend = False
+                        chart.category_axis.has_major_gridlines = False
+                        chart.value_axis.has_major_gridlines = True
+
+                        # 设置柱状图颜色
+                        plot = chart.plots[0]
+                        for series in plot.series:
+                            series.format.fill.solid()
+                            series.format.fill.fore_color.rgb = theme_colors['primary_color']
+                except Exception as chart_error:
+                    # 如果图表创建失败，降级为文本内容
+                    self._add_text_content(slide, slide_data, theme_colors, font_name)
+                    
+            elif content_type == 'summary':
+                # 总结页（参考pptdemo.py第199-238行）
+                summary_box = slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(2.8))
+                summary_frame = summary_box.text_frame
+                summary_frame.word_wrap = True
+                
+                summary_text = slide_data.get('content', '内容总结')
+                summary_frame.text = summary_text
+                summary_para = summary_frame.paragraphs[0]
+                summary_para.font.name = font_name
+                summary_para.font.size = Pt(18)
+                summary_para.font.color.rgb = theme_colors['text_color']
+                summary_para.alignment = PP_ALIGN.JUSTIFY
+                
+                # 添加强调框
+                highlight_box = slide.shapes.add_shape(
+                    MSO_SHAPE.ROUNDED_RECTANGLE,
+                    Inches(2), Inches(4.2), Inches(6), Inches(1)
+                )
+                highlight_box.fill.solid()
+                highlight_box.fill.fore_color.rgb = theme_colors['accent_color']
+                highlight_box.line.color.rgb = RGBColor(255, 255, 255)
+                highlight_box.line.width = Pt(1.5)
+
+                highlight_frame = highlight_box.text_frame
+                highlight_text = slide_data.get('highlight', '关键要点')
+                highlight_frame.text = highlight_text
+                highlight_para = highlight_frame.paragraphs[0]
+                highlight_para.font.name = font_name
+                highlight_para.font.size = Pt(20)
+                highlight_para.font.bold = True
+                highlight_para.font.color.rgb = RGBColor(255, 255, 255)
+                highlight_para.alignment = PP_ALIGN.CENTER
+                highlight_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+                
+            else:
+                # 默认文本内容
+                self._add_text_content(slide, slide_data, theme_colors, font_name)
+                
+            # 添加备注
+            note_text = slide_data.get('note', f'内容页{slide_idx + 1}')
+            if hasattr(slide, 'notes_slide'):
+                notes_slide = slide.notes_slide
+                if notes_slide:
+                    note = notes_slide.notes_text_frame
+                    note.text = note_text
+
+        # ===================== 4. 创建结束页（版式2：节标题） =====================
+        section_layout = prs.slide_layouts[2]
+        slide_end = prs.slides.add_slide(section_layout)
+        slide_end.background.fill.solid()
+        slide_end.background.fill.fore_color.rgb = theme_colors['primary_color']
+
+        title_end = slide_end.shapes.title
+        title_end.text = "谢谢观看"
+        title_end.text_frame.paragraphs[0].font.name = font_name
+        title_end.text_frame.paragraphs[0].font.size = Pt(52)
+        title_end.text_frame.paragraphs[0].font.bold = True
+        title_end.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+        title_end.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+
+        # ===================== 5. 保存PPT文件 =====================
         date_path = datetime.now().strftime('%Y/%m/%d')
         save_dir = os.path.join(settings.MEDIA_ROOT, f'pptfile/{date_path}')
 
@@ -218,3 +429,214 @@ class genPPT():
             'file_name': file_name,
             'download_url': f'/api/system/transdicts/ppt/download/?file_path={relative_path}'
         }
+
+    def generate_content_with_ai(self, text_content, theme, slide_count, paragraphs):
+        """
+        调用大模型生成智能PPT内容
+        
+        参数:
+            text_content: 原始文本内容
+            theme: 主题类型
+            slide_count: 幻灯片数量
+            paragraphs: 解析后的段落列表
+            
+        返回:
+            包含生成内容的字典
+        """
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 检查是否配置了大模型服务
+        use_llm = getattr(settings, 'USE_LLM_FOR_PPT', True )
+        
+        if not use_llm:
+            logger.info("未启用大模型服务，使用规则生成内容")
+            return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
+        
+        try:
+            # 尝试导入大模型库（这里使用示例，实际根据你的大模型实现调整）
+            # 假设你有一个LLM服务调用方法
+            from dvadmin.utils.llm_service import call_llm
+            
+            # 构建提示词
+            prompt = f"""
+请分析以下文本内容，为PPT生成{slide_count}页幻灯片的结构化内容。
+
+主题风格：{theme}
+语言：中文
+
+原始文本内容：
+{text_content[:3000]}
+
+请按照以下JSON格式返回内容：
+{{
+    "title":"幻灯片总标题",
+    "subtilt":"幻灯片副标题",
+
+    "slides": [
+        {{
+            "type": "bullet_points",
+            "title": "幻灯片标题",
+            "content": ["要点1", "要点2", "要点3"],
+            "note": "备注信息"
+        }},
+        {{
+            "type": "two_column",
+            "title": "双栏标题",
+            "left_title": "左栏标题",
+            "left_content": ["左栏要点1", "左栏要点2"],
+            "right_title": "右栏标题",
+            "right_content": ["右栏要点1", "右栏要点2"],
+            "note": "备注信息"
+        }},
+        {{
+            "type": "chart",
+            "title": "图表标题",
+            "chart_data": {{
+                "categories": ["类别1", "类别2", "类别3"],
+                "values": [100, 200, 150]
+            }},
+            "note": "备注信息"
+        }},
+        {{
+            "type": "summary",
+            "title": "总结标题",
+            "content": "总结文本内容...",
+            "highlight": "关键要点",
+            "note": "备注信息"
+        }}
+    ]
+}}
+
+注意：
+1. 幻灯片类型包括：bullet_points（要点列表）、two_column（双栏）、chart（图表）、summary（总结）
+2. 确保内容简洁、专业
+3. 每个要点不超过50个字
+4. 图表页只在include_charts为True时使用
+5. 返回纯JSON格式，不要有其他说明文字
+"""
+
+            # 调用大模型
+            logger.info(f"开始调用大模型生成PPT内容，主题：{theme}，页数：{slide_count}")
+            logger.info(f"调用大模型生成PPT内容，提示词：{prompt}")
+            llm_response = call_llm(prompt)
+            
+            # 解析返回的JSON
+            try:
+                ai_content = json.loads(llm_response)
+                logger.info(f"大模型成功生成内容，共{len(ai_content.get('slides', []))}页")
+                return ai_content
+            except json.JSONDecodeError as e:
+                logger.error(f"大模型返回的JSON解析失败: {e}")
+                # 降级到规则生成
+                return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
+                
+        except ImportError:
+            logger.warning("未找到大模型服务，使用规则生成内容")
+            return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
+        except Exception as e:
+            logger.error(f"调用大模型失败: {e}")
+            # 降级到规则生成
+            return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
+
+    def _generate_content_by_rules(self, text_content, theme, slide_count, paragraphs):
+        """
+        基于规则生成PPT内容（降级方案）
+        """
+        import re
+        from collections import Counter
+        
+        slides = []
+        
+        # 使用第一个段落作为标题
+        main_title = paragraphs[0] if paragraphs else "演示文稿"
+        
+        # 统计段落内容，提取关键词
+        all_text = ' '.join(paragraphs)
+        words = re.findall(r'[\w\u4e00-\u9fff]+', all_text)
+        common_words = Counter(words).most_common(20)
+        
+        # 根据页数生成不同类型的幻灯片
+        slide_types = ['bullet_points', 'two_column', 'summary', 'bullet_points', 'chart']
+        
+        for i in range(min(slide_count - 2, len(paragraphs) - 1)):
+            if i + 1 >= len(paragraphs):
+                break
+                
+            slide_type = slide_types[i % len(slide_types)]
+            para = paragraphs[i + 1]
+            
+            if slide_type == 'bullet_points':
+                # 从段落中提取要点
+                sentences = re.split(r'[。！？；\n]', para)
+                bullets = [s.strip() for s in sentences if len(s.strip()) > 5][:6]
+                
+                slides.append({
+                    'type': 'bullet_points',
+                    'title': para[:30] + ('...' if len(para) > 30 else ''),
+                    'content': bullets,
+                    'note': f'内容页{i + 1}：{bullets[0] if bullets else ""}'
+                })
+                
+            elif slide_type == 'two_column':
+                # 双栏布局
+                sentences = re.split(r'[。！？；\n]', para)
+                left_content = [s.strip() for s in sentences[:3] if len(s.strip()) > 5]
+                right_content = [s.strip() for s in sentences[3:6] if len(s.strip()) > 5]
+                
+                slides.append({
+                    'type': 'two_column',
+                    'title': '内容概览',
+                    'left_title': '主要观点',
+                    'left_content': left_content,
+                    'right_title': '详细说明',
+                    'right_content': right_content,
+                    'note': f'内容页{i + 1}：双栏布局展示'
+                })
+                
+            elif slide_type == 'summary':
+                # 总结页
+                summary_text = para[:200] + ('...' if len(para) > 200 else '')
+                
+                slides.append({
+                    'type': 'summary',
+                    'title': '要点总结',
+                    'content': summary_text,
+                    'highlight': common_words[i][0] if i < len(common_words) else '核心要点',
+                    'note': f'内容页{i + 1}：总结回顾'
+                })
+                
+            elif slide_type == 'chart':
+                # 图表页（模拟数据）
+                slides.append({
+                    'type': 'chart',
+                    'title': '数据分析',
+                    'chart_data': {
+                        'categories': ['类别1', '类别2', '类别3', '类别4', '类别5'],
+                        'values': [30, 45, 25, 60, 40]
+                    },
+                    'note': f'内容页{i + 1}：数据图表展示'
+                })
+
+        return {'slides': slides}
+
+    def _add_text_content(self, slide, slide_data, theme_colors, font_name):
+        """
+        添加默认的文本内容（降级方案）
+        """
+        from pptx.util import Inches, Pt
+        from pptx.enum.text import PP_ALIGN
+        from pptx.dml.color import RGBColor
+        
+        content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8.6), Inches(3.5))
+        content_frame = content_box.text_frame
+        content_frame.word_wrap = True
+        
+        content_text = slide_data.get('content', '内容详情')
+        content_para = content_frame.paragraphs[0]
+        content_para.text = content_text[:500] + ('...' if len(content_text) > 500 else '')
+        content_para.font.name = font_name
+        content_para.font.size = Pt(16)
+        content_para.font.color.rgb = theme_colors['text_color']
+        content_para.line_spacing = 1.5

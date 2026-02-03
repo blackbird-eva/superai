@@ -174,7 +174,7 @@ function createRequestFunction(service: any) {
 			headers: {
 				'Content-Type': 'application/json',
 			},
-			timeout: 5000,
+			timeout: 60*1000,
 			baseURL: getBaseURL(),
 			data: {},
 		};
