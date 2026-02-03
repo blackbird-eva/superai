@@ -32,6 +32,9 @@ class genPPT():
         """
         使用python-pptx创建实际的PPT文件
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         from pptx import Presentation
         from pptx.util import Pt, Inches
         from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
@@ -126,10 +129,20 @@ class genPPT():
         prs.slide_width = Inches(10)
         prs.slide_height = Inches(5.625)
 
-        # 幻灯片标题
-        title = paragraphs[0] if paragraphs else "演示文稿"
+        # ===================== 1. 调用大模型生成智能内容 =====================
+        # 使用大模型分析文本内容，生成结构化的PPT内容（包括标题和副标题）
+        ai_generated_content = self.generate_content_with_ai(text_content, theme, slide_count, paragraphs)
+        
+        print(ai_generated_content)
+        # 从AI生成的内容中提取标题和副标题
+        # 兼容两种字段名：subtitle 和 subtilt（拼写错误）
+        ppt_title = ai_generated_content.get('title') or (paragraphs[0] if paragraphs else "演示文稿")
+        ppt_subtitle = ai_generated_content.get('subtitle') or ai_generated_content.get('subtilt', '')
+        
+        logger.info(f"AI生成的标题: {ppt_title}")
+        logger.info(f"AI生成的副标题: {ppt_subtitle}")
 
-        # ===================== 1. 创建封面页（版式0：标题页） =====================
+        # ===================== 2. 创建封面页（版式0：标题页） =====================
         title_slide_layout = prs.slide_layouts[0]  # 标题页
         slide1 = prs.slides.add_slide(title_slide_layout)
 
@@ -137,9 +150,9 @@ class genPPT():
         slide1.background.fill.solid()
         slide1.background.fill.fore_color.rgb = theme_colors['bg_color']
 
-        # 设置主标题
+        # 设置主标题（使用AI生成的标题）
         title1 = slide1.shapes.title
-        title1.text = title
+        title1.text = ppt_title
         title1_text_frame = title1.text_frame.paragraphs[0]
         title1_text_frame.font.name = font_name
         title1_text_frame.font.size = Pt(46)
@@ -147,9 +160,15 @@ class genPPT():
         title1_text_frame.font.color.rgb = theme_colors['primary_color']
         title1_text_frame.alignment = PP_ALIGN.CENTER
 
-        # 设置副标题
+        # 设置副标题（使用AI生成的副标题，如果没有则使用默认格式）
         subtitle1 = slide1.placeholders[1]
-        subtitle1.text = f"专业术语详解 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
+        if ppt_subtitle:
+            # 使用AI生成的副标题
+            subtitle1.text = ppt_subtitle
+        else:
+            # 使用默认格式
+            subtitle1.text = f"专业术语详解 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
+        
         subtitle1_text_frame = subtitle1.text_frame.paragraphs[0]
         subtitle1_text_frame.font.name = font_name
         subtitle1_text_frame.font.size = Pt(18)
@@ -186,9 +205,7 @@ class genPPT():
                 note = notes_slide.notes_text_frame
                 note.text = "封面页：演示PPT的主标题和基本信息。"
 
-        # ===================== 2. 调用大模型生成智能内容 =====================
-        # 使用大模型分析文本内容，生成结构化的PPT内容
-        ai_generated_content = self.generate_content_with_ai(text_content, theme, slide_count, paragraphs)
+        # ===================== 3. 根据AI生成的内容创建幻灯片 =====================
         
         # ===================== 3. 根据AI生成的内容创建幻灯片 =====================
         for slide_idx, slide_data in enumerate(ai_generated_content['slides']):
