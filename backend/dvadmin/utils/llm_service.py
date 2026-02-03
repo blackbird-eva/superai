@@ -24,8 +24,8 @@ class LLMService:
         self.api_key = getattr(settings, 'LLM_API_KEY', 'not-needed')
         self.model = getattr(settings, 'LLM_MODEL', 'qwen2.5-7b-instruct:2')
         self.temperature = getattr(settings, 'LLM_TEMPERATURE', 0.7)
-        self.max_tokens = getattr(settings, 'LLM_MAX_TOKENS', 2000)
-        self.timeout = getattr(settings, 'LLM_TIMEOUT', 30)
+        self.max_tokens = getattr(settings, 'LLM_MAX_TOKENS', 4000)
+        self.timeout = getattr(settings, 'LLM_TIMEOUT', 75)
         
         # 请求头
         self.headers = {
