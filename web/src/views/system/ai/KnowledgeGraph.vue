@@ -330,7 +330,7 @@ const formRules = {
   const graphList = ref([
     {
       id: 1,
-      name: '直升机总体设计知识图谱',
+      name: '直升机总体设计',
       description: '涵盖直升机总体构型、系统设计、性能分析等核心技术知识',
       domain: '总体设计',
       nodeCount: 12,
@@ -366,7 +366,7 @@ const formRules = {
     },
     {
       id: 2,
-      name: '旋翼空气动力学知识图谱',
+      name: '旋翼空气动力学',
       description: '直升机旋翼空气动力学理论与分析方法知识体系',
       domain: '空气动力学',
       nodeCount: 10,
@@ -397,7 +397,7 @@ const formRules = {
     },
     {
       id: 3,
-      name: '飞行力学与控制知识图谱',
+      name: '飞行力学与控制',
       description: '直升机飞行力学特性与飞行控制系统专业知识体系',
       domain: '飞行控制',
       nodeCount: 11,
