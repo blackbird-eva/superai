@@ -676,10 +676,18 @@ const generatePPT = async () => {
     }
 
     // 保存PPT文件路径，用于下载
-    if (response.data.ppt_file_path) {
+    // 优先使用完整的下载URL，如果没有则使用文件路径
+    if (response.data.ppt_download_url) {
+      pptFilePath.value = response.data.ppt_download_url
+    } else if (response.data.ppt_file_path) {
       pptFilePath.value = response.data.ppt_file_path
+    }
+    if (response.data.ppt_file_name) {
       pptFileName.value = response.data.ppt_file_name
     }
+
+    pptFilePath.value = response.data.ppt_file_path
+
 
     ElMessage.success('PPT生成成功！')
   } catch (error: any) {
@@ -818,24 +826,26 @@ const downloadPPT = async () => {
   isDownloading.value = true
 
   try {
-    // 调用下载API
-    const response = await DownloadPPT(pptFilePath.value)
-
-    // 创建Blob和下载链接
-    const blob = new Blob([response], {
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-    })
-
-    const url = window.URL.createObjectURL(blob)
+    // 判断是否为完整URL或相对路径
+    let downloadUrl = pptFilePath.value
+    
+    // 如果是相对路径，转换为完整的媒体文件URL
+    if (!downloadUrl.startsWith('http')) {
+      // 转换文件路径格式：pptfile/2026/02/03/filename.pptx -> media/pptfile/2026/02/03/filename.pptx
+      const mediaPath = downloadUrl.startsWith('media/') ? downloadUrl : 'media/' + downloadUrl
+      downloadUrl = `http://localhost:8000/${mediaPath}`
+    }
+    
+    console.log('下载URL:', downloadUrl)
+    
+    // 直接通过window.open下载文件
     const link = document.createElement('a')
-    link.href = url
+    link.href = downloadUrl
     link.download = pptFileName.value || `AI生成PPT_${new Date().getTime()}.pptx`
-
+    link.target = '_blank'
+    
     document.body.appendChild(link)
     link.click()
-
-    // 清理
-    window.URL.revokeObjectURL(url)
     document.body.removeChild(link)
 
     ElMessage.success('PPT下载成功！')
@@ -968,18 +978,31 @@ const deletePPT = async (id: string) => {
 const downloadPPTFromList = async (ppt: any) => {
   isDownloading.value = true
   try {
-    const response = await DownloadPPT(ppt.ppt_file_path || ppt.file_path)
-    const blob = new Blob([response], {
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-    })
-    const url = window.URL.createObjectURL(blob)
+    // 获取文件路径
+    let filePath = ppt.ppt_download_url || ppt.ppt_file_path || ppt.file_path
+    
+    // 判断是否为完整URL或相对路径
+    let downloadUrl = filePath
+    
+    // 如果是相对路径，转换为完整的媒体文件URL
+    if (!downloadUrl.startsWith('http')) {
+      // 转换文件路径格式：pptfile/2026/02/03/filename.pptx -> media/pptfile/2026/02/03/filename.pptx
+      const mediaPath = downloadUrl.startsWith('media/') ? downloadUrl : 'media/' + downloadUrl
+      downloadUrl = `http://localhost:8000/${mediaPath}`
+    }
+    
+    console.log('列表下载URL:', downloadUrl)
+    
+    // 直接通过window.open下载文件
     const link = document.createElement('a')
-    link.href = url
+    link.href = downloadUrl
     link.download = ppt.ppt_file_name || `${ppt.title}.pptx`
+    link.target = '_blank'
+    
     document.body.appendChild(link)
     link.click()
-    window.URL.revokeObjectURL(url)
     document.body.removeChild(link)
+    
     ElMessage.success('下载成功')
   } catch (error: any) {
     console.error('下载失败:', error)
