@@ -20,13 +20,13 @@ from dvadmin.system.serializers.transdicts import (
     PPTFileSerializer, PPTFileCreateSerializer,
     PPTFileUpdateSerializer, PPTFileListSerializer
 )
-from dvadmin.utils.json_response import SuccessResponse
+ 
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
 from django.http import HttpResponse
 from django.conf import settings
 
-
+from dvadmin.utils.json_response import DetailResponse, SuccessResponse, ErrorResponse
 
 
 class PPTFileViewSet(CustomModelViewSet):
