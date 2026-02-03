@@ -9,9 +9,9 @@ from dvadmin.system.views.dictionary import DictionaryViewSet
 from dvadmin.system.views.transdicts import (
     TransdictsViewSet, GetTransdictsCategoriesView, MyTaskHelloView,
     ReadExcelView, TranslateView, DocumentUploadView, DocumentTranslateView,
-    DocumentDownloadView, GeneratePPTView, PPTDownloadView, PPTFileViewSet,
-    UploadFilesAndGeneratePPTView
+    DocumentDownloadView, GeneratePPTView, PPTDownloadView, PPTFileViewSet
 )
+from dvadmin.system.views.pptview import UploadFilesAndGeneratePPTView
 from dvadmin.system.views.file_list import FileViewSet
 from dvadmin.system.views.login_log import LoginLogViewSet
 from dvadmin.system.views.menu import MenuViewSet
