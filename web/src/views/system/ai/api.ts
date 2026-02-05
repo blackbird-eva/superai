@@ -138,6 +138,32 @@ export function DocumentUpload(data: FormData) {
 }
 
 /**
+ * 通用文件上传接口
+ */
+export function FileUpload(data: FormData) {
+    return request({
+        url: apiPrefix + 'file/upload/',
+        method: 'post',
+        data: data,
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+}
+
+/**
+ * 文件下载
+ */
+export function FileDownload(file_path: string) {
+    return request({
+        url: apiPrefix + 'file/download/',
+        method: 'get',
+        params: { file_path },
+        responseType: 'blob',
+    });
+}
+
+/**
  * 生成PPT
  */
 export function GeneratePPT(data: {

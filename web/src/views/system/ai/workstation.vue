@@ -54,11 +54,31 @@
             </el-button>
           </div>
 
+          <!-- 文本输入工具栏 -->
+          <div class="input-toolbar">
+            <input
+              ref="textFileInputRef"
+              type="file"
+              accept=".txt,.md"
+              style="display: none"
+              @change="handleTextFileUpload"
+            >
+            <el-button
+              text
+              icon="Upload"
+              @click="textFileInputRef?.click()"
+              title="上传文本文件"
+            >
+              上传文本
+            </el-button>ddddd
+            <el-divider direction="vertical"></el-divider>
+          </div>
+
           <el-input
             v-model="inputText"
             type="textarea"
             :rows="12"
-            placeholder="请输入或粘贴需要翻译的文本..."
+            placeholder="请输入或粘贴需要翻译的文本...，也可点击上方上传文本按钮导入文本文件"
             class="translation-textarea"
             @input="handleInputChange"
             @paste="handlePaste"
@@ -295,10 +315,15 @@
               accept=".docx,.ppt,.pptx,.pdf,.txt"
               :limit="1"
               :auto-upload="false"
+              :disabled="uploadingDoc"
             >
             <div v-if="fileList.length === 0" class="upload-placeholder">
-              <el-icon class="upload-icon"><Document /></el-icon>
-              <div class="upload-text">拖拽文档到此处或点击上传</div>
+              <el-icon v-if="!uploadingDoc" class="upload-icon"><Document /></el-icon>
+              <el-icon v-else class="upload-icon is-loading" :size="48">
+                <Loading />
+              </el-icon>
+              <div v-if="!uploadingDoc" class="upload-text">拖拽文档到此处或点击上传</div>
+              <div v-else class="upload-text">正在上传文档...</div>
               <div class="upload-hint">支持 DOCX、PPT、PDF、TXT 格式，大小不超过 50MB</div>
               <div v-if="docConfig.type || docConfig.about_text" class="config-summary">
                 <el-tag v-if="docConfig.type" type="info" size="small">类型: {{ docConfig.type.toUpperCase() }}</el-tag>
@@ -307,6 +332,8 @@
                 <el-tag v-if="docConfig.share" type="primary" size="small">分享</el-tag>
                 <el-tag v-if="docConfig.userversion" type="info" size="small">版本控制</el-tag>
               </div>
+
+
             </div>
             <div v-else class="file-info">
               <div class="file-details">
@@ -605,9 +632,9 @@ import { ElMessage } from 'element-plus'
 import {
   Position, Sort, Picture, Document, Microphone,
   CopyDocument, Download, ChatDotRound, Delete,
-  Upload, View
+  Upload, View, Loading
 } from '@element-plus/icons-vue'
-import { Translate, TranslateDocument } from './api'
+import { Translate, TranslateDocument, FileUpload } from './api'
 
 // 翻译模式
 const activeMode = ref('text')
@@ -620,8 +647,14 @@ const targetLang = ref('en')
 const inputText = ref('')
 const outputText = ref('')
 
+// 文本文件输入引用
+const textFileInputRef = ref<HTMLInputElement | null>(null)
+
 // 翻译状态
 const translating = ref(false)
+
+// 文档上传状态
+const uploadingDoc = ref(false)
 
 // 录音状态
 const isRecording = ref(false)
@@ -987,6 +1020,67 @@ const beforeDocUpload = (file: File) => {
   return true
 }
 
+// 文本文件上传处理
+const handleTextFileUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  // 验证文件类型
+  const validTypes = ['text/plain', 'text/markdown', 'text/html']
+  const fileExt = file.name.split('.').pop()?.toLowerCase()
+  const validExts = ['txt', 'md', 'html']
+
+  if (!validExts.includes(fileExt || '')) {
+    ElMessage.error('不支持的文本文件格式，仅支持: TXT, MD, HTML')
+    return
+  }
+
+  // 验证文件大小 (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error('文本文件大小不能超过 10MB')
+    return
+  }
+
+  try {
+    // 读取文件内容
+    const text = await readFileContent(file)
+    inputText.value = text
+    ElMessage.success(`成功导入文本文件，共 ${text.length} 字符`)
+
+    // 自动检测语言
+    detectLanguage()
+  } catch (error: any) {
+    console.error('读取文件失败:', error)
+    ElMessage.error('读取文件失败: ' + error.message)
+  }
+
+  // 清空文件输入，允许重复上传同一文件
+  target.value = ''
+}
+
+// 读取文件内容
+const readFileContent = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      if (content) {
+        resolve(content)
+      } else {
+        reject(new Error('文件内容为空'))
+      }
+    }
+    reader.onerror = () => {
+      reject(new Error('读取文件失败'))
+    }
+    reader.readAsText(file, 'utf-8')
+  })
+}
+
 // 文档移除
 const handleDocRemove = () => {
   fileList.value = []
@@ -995,18 +1089,101 @@ const handleDocRemove = () => {
 }
 
 // 文档选择变化
-const handleDocChange = (file: any, fileList: any[]) => {
+const handleDocChange = async (file: any, fileList: any[]) => {
   // 保存文件对象
   file.raw = file.raw || file
-  
-  // 加载该文件的保存内容
-  loadSavedDocContent()
+
+  // 验证文件
+  if (!file.raw) {
+    ElMessage.error('文件对象无效')
+    return
+  }
+
+  try {
+    uploadingDoc.value = true
+
+    // 创建 FormData 对象
+    const formData = new FormData()
+    formData.append('file', file.raw)
+    formData.append('source_lang', sourceLang.value)
+    formData.append('target_lang', targetLang.value)
+    formData.append('type', docConfig.value.type)
+    formData.append('about_text', docConfig.value.about_text || '')
+    formData.append('transtask', String(docConfig.value.transtask))
+    formData.append('graphtask', String(docConfig.value.graphtask))
+    formData.append('share', String(docConfig.value.share))
+    formData.append('userversion', String(docConfig.value.userversion))
+
+    // 调用文件上传 API
+    const response = await FileUpload(formData)
+
+    console.log('FileUpload API 响应:', response)
+    console.log('response.data:', response?.data)
+    console.log('response.code:', response?.code)
+
+    // 检查响应结构，支持多种可能的格式
+    let isSuccess = false
+    let uploadData = null
+    let message = ''
+
+    // 格式1: response.data.code === 2000 (request 未解包)
+    if (response?.data?.code === 2000) {
+      isSuccess = true
+      uploadData = response.data.data
+      message = response.data.msg
+      console.log('使用格式1: response.data.code')
+    }
+    // 格式2: response.code === 2000 (request 已解包)
+    else if (response?.code === 2000) {
+      isSuccess = true
+      uploadData = response.data
+      message = response.msg
+      console.log('使用格式2: response.code')
+    }
+    // 其他情况，视为失败
+    else {
+      isSuccess = false
+      message = response?.data?.msg || response?.msg || '上传失败，未知错误'
+      console.log('响应格式不支持或失败')
+    }
+
+    if (isSuccess) {
+      console.log('上传成功，数据:', uploadData)
+
+      // 保存上传结果
+      file.id = uploadData.id
+      file.uploaded = true
+      file.file_path = uploadData.file_path
+
+      ElMessage.success(`文档上传成功！文件类型: ${uploadData.type_display}, 大小: ${formatFileSize(uploadData.file_size)}`)
+
+      // 加载该文件的保存内容
+      await loadSavedDocContent()
+    } else {
+      console.error('上传失败:', message)
+      ElMessage.error(message)
+      // 上传失败，清空文件列表
+      clearFile()
+    }
+  } catch (error: any) {
+    console.error('文档上传错误:', error)
+    ElMessage.error(error.response?.data?.msg || error.message || '文档上传失败')
+    clearFile()
+  } finally {
+    uploadingDoc.value = false
+  }
 }
 
 // 文档翻译
 const translateDocument = async () => {
   if (fileList.value.length === 0) {
     ElMessage.warning('请先上传文档')
+    return
+  }
+
+  // 检查文件是否已上传
+  if (!fileList.value[0].uploaded) {
+    ElMessage.warning('文件正在上传或上传失败，请稍候')
     return
   }
 
@@ -1026,18 +1203,18 @@ const translateDocument = async () => {
     formData.append('userversion', String(docConfig.value.userversion))
 
     let response
-    
+
     // 根据是否需要翻译选择不同的API
     if (docConfig.value.transtask) {
       // 需要翻译，调用翻译API
       response = await TranslateDocument(formData)
     } else {
       // 只需要上传和处理，调用上传API
-      response = await DocumentUpload(formData)
+      response = await FileUpload(formData)
     }
 
     if (response && response.data) {
-      if (response.data.code === 200) {
+      if (response.data.code === 200 || response.data.code === 2000) {
         if (docConfig.value.transtask) {
           // 翻译结果
           docTranslatedData.value = response.data.data
@@ -1336,6 +1513,23 @@ const handleImageSuccess = () => {
   border-radius: 4px;
 }
 
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.input-toolbar .el-button {
+  color: #606266;
+}
+
+.input-toolbar .el-button:hover {
+  color: #409eff;
+}
+
 .translation-textarea {
   flex: 1;
   padding: 20px;
@@ -1505,6 +1699,19 @@ const handleImageSuccess = () => {
   font-size: 48px;
   color: #409eff;
   margin-bottom: 16px;
+}
+
+.upload-icon.is-loading {
+  animation: rotate 1.5s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .upload-text {
