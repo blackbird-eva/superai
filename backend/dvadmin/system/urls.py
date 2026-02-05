@@ -12,6 +12,7 @@ from dvadmin.system.views.transdicts import (
     DocumentDownloadView
 )
 from dvadmin.system.views.translateview import TranslateView
+from dvadmin.system.views.filesup import FileUploadView, FileDownloadView
 from dvadmin.system.views.genpptview import GeneratePPTView
 from dvadmin.system.views.pptfile import PPTFileViewSet
 from dvadmin.system.views.pptview import UploadFilesAndGeneratePPTView
@@ -67,6 +68,8 @@ urlpatterns = [
     path('transdicts/document/upload/', DocumentUploadView.as_view()),
     path('transdicts/document/', DocumentTranslateView.as_view()),
     path('transdicts/document/download/', DocumentDownloadView.as_view()),
+    path('transdicts/file/upload/', FileUploadView.as_view()),
+    path('transdicts/file/download/', FileDownloadView.as_view()),
     path('transdicts/generate_ppt/', GeneratePPTView.as_view()),
     path('transdicts/ppt/upload_and_generate/', UploadFilesAndGeneratePPTView.as_view()),
  
