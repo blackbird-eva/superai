@@ -5,7 +5,7 @@ Word文档处理模块
 """
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.shared import Pt
+from docx.shared import Pt, RGBColor
 from datetime import datetime
 import os
 import uuid
@@ -112,9 +112,38 @@ def process_word_with_format(input_path, output_path, source_lang='zh', target_l
         print(f"原文本: {original_text}")
         print(f"新文本: {modified_text}")
  
-        
-        # 关键：清空原段落文本，重新写入（保留原格式）
-        para.text = modified_text
+
+        # 关键：保留原有格式，逐个运行块替换文本
+        # 清空段落但保留第一个运行块的格式
+        if para.runs:
+            # 保留第一个运行块的格式
+            first_run = para.runs[0]
+            original_format = {
+                'bold': first_run.bold,
+                'italic': first_run.italic,
+                'underline': first_run.underline,
+                'font_name': first_run.font.name if first_run.font.name else None,
+                'font_size': first_run.font.size,
+                'color': first_run.font.color.rgb if first_run.font.color and first_run.font.color.rgb else None
+            }
+            
+            # 清空段落内容
+            para.clear()
+            
+            # 添加新文本，应用原始格式
+            new_run = para.add_run(modified_text)
+            new_run.bold = original_format['bold']
+            new_run.italic = original_format['italic']
+            new_run.underline = original_format['underline']
+            if original_format['font_name']:
+                new_run.font.name = original_format['font_name']
+            if original_format['font_size']:
+                new_run.font.size = original_format['font_size']
+            if original_format['color']:
+                new_run.font.color.rgb = original_format['color']
+        else:
+            # 如果没有运行块，直接设置文本
+            para.text = modified_text
         
     # 3. 遍历所有表格（如果有表格，也保留格式修改）
     for table in doc.tables:
@@ -129,7 +158,37 @@ def process_word_with_format(input_path, output_path, source_lang='zh', target_l
                         if modified_text == "" or not modified_text:
                             modified_text = original_text
                         print(f"表格新文本: {modified_text}")
-                        para.text = modified_text
+                        
+                        # 保留原有格式
+                        if para.runs:
+                            # 保留第一个运行块的格式
+                            first_run = para.runs[0]
+                            original_format = {
+                                'bold': first_run.bold,
+                                'italic': first_run.italic,
+                                'underline': first_run.underline,
+                                'font_name': first_run.font.name if first_run.font.name else None,
+                                'font_size': first_run.font.size,
+                                'color': first_run.font.color.rgb if first_run.font.color and first_run.font.color.rgb else None
+                            }
+                            
+                            # 清空段落内容
+                            para.clear()
+                            
+                            # 添加新文本，应用原始格式
+                            new_run = para.add_run(modified_text)
+                            new_run.bold = original_format['bold']
+                            new_run.italic = original_format['italic']
+                            new_run.underline = original_format['underline']
+                            if original_format['font_name']:
+                                new_run.font.name = original_format['font_name']
+                            if original_format['font_size']:
+                                new_run.font.size = original_format['font_size']
+                            if original_format['color']:
+                                new_run.font.color.rgb = original_format['color']
+                        else:
+                            # 如果没有运行块，直接设置文本
+                            para.text = modified_text
     
     # 4. 处理文档中的图片
     copy_images_to_new_doc(Document(input_path), doc)
