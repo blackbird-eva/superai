@@ -142,9 +142,9 @@ class genPPT():
         logger.info(f"AI生成的标题: {ppt_title}")
         logger.info(f"AI生成的副标题: {ppt_subtitle}")
 
-        # ===================== 2. 创建封面页（版式0：标题页） =====================
-        title_slide_layout = prs.slide_layouts[0]  # 标题页
-        slide1 = prs.slides.add_slide(title_slide_layout)
+        # ===================== 2. 创建封面页（使用空白版式避免多余占位符） =====================
+        blank_layout = prs.slide_layouts[6]  # 空白页版式
+        slide1 = prs.slides.add_slide(blank_layout)
 
         # 设置背景图片
         bg_img_path = "d:/ai/bg.png"
@@ -166,14 +166,9 @@ class genPPT():
             slide1.background.fill.solid()
             slide1.background.fill.fore_color.rgb = theme_colors['bg_color']
 
-        # 设置主标题（使用AI生成的标题）
-        # 删除原来的标题占位符，创建新的文本框以精确控制位置
-        title_placeholder = slide1.shapes.title
-        title_placeholder.text = ""
-        
-        # 创建新的文本框，向上移动约100px（~1.4英寸），并设为白色
+        # 创建主标题文本框，向上移动并设为白色
         title_left = Inches(0.5)
-        title_top = Inches(1.0)  # 原来默认位置约为2.0英寸，现在改为1.0英寸，向上移动约1英寸(约72px)
+        title_top = Inches(1.0)  # 向上移动
         title_width = Inches(9)   # 保持宽度
         title_height = Inches(1.2)  # 高度调整以适应内容
         
@@ -187,46 +182,9 @@ class genPPT():
         title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
         title_frame.word_wrap = True
 
-        # 设置副标题（使用AI生成的副标题，如果没有则使用默认格式）
-        # 创建新的副标题文本框，向上移动并与主标题协调
-        subtitle_left = Inches(0.5)
-        subtitle_top = Inches(2.3)  # 在主标题下方
-        subtitle_width = Inches(9)
-        subtitle_height = Inches(0.8)
-        
-        subtitle_box = slide1.shapes.add_textbox(subtitle_left, subtitle_top, subtitle_width, subtitle_height)
-        subtitle_frame = subtitle_box.text_frame
-        if ppt_subtitle:
-            # 使用AI生成的副标题
-            subtitle_frame.text = ppt_subtitle
-        else:
-            # 使用默认格式
-            subtitle_frame.text = f"专业术语详解1 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
-        
-        subtitle_frame.paragraphs[0].font.name = font_name
-        subtitle_frame.paragraphs[0].font.size = Pt(18)
-        subtitle_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)  # 白色文字
-        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-        subtitle_frame.paragraphs[0].line_spacing = 1.6
-        subtitle_frame.word_wrap = True
+        # 不再创建副标题，只保留主标题
 
-        # 添加顶部装饰形状
-        top_deco = slide1.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(2), Inches(0.2), Inches(6), Inches(0.1)
-        )
-        top_deco.fill.solid()
-        top_deco.fill.fore_color.rgb = theme_colors['accent_color']
-        top_deco.line.fill.background()
-
-        # 添加底部装饰形状
-        deco_shape = slide1.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(2), Inches(5.2), Inches(6), Inches(0.25)
-        )
-        deco_shape.fill.solid()
-        deco_shape.fill.fore_color.rgb = theme_colors['primary_color']
-        deco_shape.line.fill.background()
+        # 移除装饰形状，避免出现无文字的彩色条
 
         # 添加备注
         if hasattr(slide1, 'notes_slide') and slide1.notes_slide:
