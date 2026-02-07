@@ -149,22 +149,18 @@ class genPPT():
         # 设置背景图片
         bg_img_path = "d:/ai/bg.png"
         if os.path.exists(bg_img_path):
-            # 使用fill_picture方法设置背景图片，避免遮挡文本
-            from pptx.dml.fill import FillFormat
-            from pptx.enum.dml import MSO_FILL
-            from pptx.enum.dml import PP_FILL
+            # 添加背景图片，确保在文本下方
+            # 先创建一个透明或白色的背景确保文本可见
+            slide1.background.fill.solid()
+            slide1.background.fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景确保文本可见
             
-            # 设置图片填充背景
-            background = slide1.background
-            fill = background.fill
-            fill.solid()  # 先设置为纯色
-            fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景，确保文本可见
-            
-            # 添加图片到幻灯片底层
+            # 添加背景图片，然后将所有文本框置于图片上方
             pic = slide1.shapes.add_picture(bg_img_path, 0, 0, prs.slide_width, prs.slide_height)
-            # 通过调整z-order将图片置于底层
+            
+            # 将图片移到底层（在PowerPoint中，形状的顺序决定了层级）
+            # 获取图片元素并将其移动到最前面，然后将其发送到后面
             slide1.shapes._spTree.remove(pic._element)
-            slide1.shapes._spTree.insert(0, pic._element)  # 插入到最底层
+            slide1.shapes._spTree.insert(2, pic._element)  # 插入到较低层级
         else:
             # 如果背景图片不存在，设置纯色背景
             slide1.background.fill.solid()
@@ -437,22 +433,18 @@ class genPPT():
         # 设置背景图片
         bg_img_path = "d:/ai/bg.png"
         if os.path.exists(bg_img_path):
-            # 使用fill_picture方法设置背景图片，避免遮挡文本
-            from pptx.dml.fill import FillFormat
-            from pptx.enum.dml import MSO_FILL
-            from pptx.enum.dml import PP_FILL
+            # 添加背景图片，确保在文本下方
+            # 先创建一个透明或白色的背景确保文本可见
+            slide_end.background.fill.solid()
+            slide_end.background.fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景确保文本可见
             
-            # 设置图片填充背景
-            background = slide_end.background
-            fill = background.fill
-            fill.solid()  # 先设置为纯色
-            fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景，确保文本可见
-            
-            # 添加图片到幻灯片底层
+            # 添加背景图片，然后将所有文本框置于图片上方
             pic = slide_end.shapes.add_picture(bg_img_path, 0, 0, prs.slide_width, prs.slide_height)
-            # 通过调整z-order将图片置于底层
+            
+            # 将图片移到底层（在PowerPoint中，形状的顺序决定了层级）
+            # 获取图片元素并将其移动到最前面，然后将其发送到后面
             slide_end.shapes._spTree.remove(pic._element)
-            slide_end.shapes._spTree.insert(0, pic._element)  # 插入到最底层
+            slide_end.shapes._spTree.insert(2, pic._element)  # 插入到较低层级
         else:
             # 如果背景图片不存在，设置纯色背景
             slide_end.background.fill.solid()
