@@ -105,7 +105,7 @@
           ></el-input>
           <div class="input-footer">
             <div class="input-tips">
-              <el-text size="small" type="info">支持 Markdown 格式</el-text>
+              <el-text size="small" type="info">支持 Markdown 格式xx</el-text>
             </div>
             <el-button
               type="primary"
@@ -133,6 +133,7 @@
 import { ref, reactive, nextTick, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Position, Delete, CopyDocument, Refresh } from '@element-plus/icons-vue'
+import { AIChat } from './api'
 
 // 消息类型
 interface Message {
@@ -257,8 +258,22 @@ const sendMessage = async () => {
   // 清空输入
   inputMessage.value = ''
 
-  // 模拟AI回复
-  await simulateAIResponse(message)
+  try {
+    // 调用后端AI聊天接口
+    const response = await AIChat(message)
+  console.log("response",response)
+    if (response.code === 2000) {
+      // 添加AI回复
+      addMessage('assistant', response.data.answer)
+    } else {
+      // 如果后端返回错误，显示错误信息
+      addMessage('assistant', `错误: ${response.message}`)
+    }
+  } catch (error) {
+    console.error('发送消息失败:', error)
+    // 如果接口调用失败，显示错误信息
+    addMessage('assistant', '发送消息失败，请稍后再试')
+  }
 
   isSending.value = false
 }
@@ -348,7 +363,24 @@ const regenerateMessage = async (index: number) => {
 
   // 重新生成
   isSending.value = true
-  await simulateAIResponse(userMessage.content)
+
+  try {
+    // 调用后端AI聊天接口
+    const response = await AIChat(userMessage.content)
+
+    if (response.code === 200) {
+      // 添加AI回复
+      addMessage('assistant', response.data.answer)
+    } else {
+      // 如果后端返回错误，显示错误信息
+      addMessage('assistant', `错误: ${response.message}`)
+    }
+  } catch (error) {
+    console.error('重新生成消息失败:', error)
+    // 如果接口调用失败，显示错误信息
+    addMessage('assistant', '重新生成消息失败，请稍后再试')
+  }
+
   isSending.value = false
 }
 
@@ -410,7 +442,7 @@ const formatTime = (date: Date): string => {
 <style scoped>
 .chat-container {
   display: flex;
-  height: 100vh;
+  height: 90vh;
   background-color: #f5f5f5;
 }
 

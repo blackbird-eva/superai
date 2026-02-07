@@ -193,6 +193,19 @@ export function DownloadPPT(file_path: string) {
 }
 
 /**
+ * AI聊天接口
+ */
+export function AIChat(question: string) {
+    return request({
+        url: '/api/system/aichat/chat/',
+        method: 'post',
+        data: {
+            question: question
+        },
+    });
+}
+
+/**
  * 获取PPT文件列表
  */
 export function GetPPTList(query: UserPageQuery) {

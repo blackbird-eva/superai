@@ -29,6 +29,7 @@ from dvadmin.system.views.system_config import SystemConfigViewSet
 from dvadmin.system.views.user import UserViewSet
 from dvadmin.system.views.menu_field import MenuFieldViewSet
 from dvadmin.system.views.download_center import DownloadCenterViewSet
+from dvadmin.system.views.aichat import AIChatView
 
 system_url = routers.SimpleRouter()
 system_url.register(r'menu', MenuViewSet)
@@ -74,6 +75,7 @@ urlpatterns = [
     path('transdicts/ppt/upload_and_generate/', UploadFilesAndGeneratePPTView.as_view()),
  
     path('mytask/hello/', MyTaskHelloView.as_view()),
+    path('aichat/chat/', AIChatView.as_view()),  # AI聊天接口
     path('clause/privacy.html', PrivacyView.as_view()),
     path('clause/terms_service.html', TermsServiceView.as_view()),
 ]
