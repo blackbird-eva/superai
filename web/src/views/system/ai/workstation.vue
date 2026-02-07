@@ -70,7 +70,7 @@
               title="上传文本文件"
             >
               上传文本
-            </el-button>ddddd
+            </el-button>
             <el-divider direction="vertical"></el-divider>
           </div>
 
@@ -305,6 +305,8 @@
         
         <div class="upload-area">
             <el-upload
+              ref="docUploaderRef"
+              :key="uploadKey"
               class="document-uploader"
               :show-file-list="true"
               :before-upload="beforeDocUpload"
@@ -322,7 +324,7 @@
               <el-icon v-else class="upload-icon is-loading" :size="48">
                 <Loading />
               </el-icon>
-              <div v-if="!uploadingDoc" class="upload-text">拖拽文档到此处或点击上传</div>
+              <div v-if="!uploadingDoc" class="upload-text">拖拽文档到此处或点击上传ｘｘｘｘ</div>
               <div v-else class="upload-text">正在上传文档...</div>
               <div class="upload-hint">支持 DOCX、PPT、PDF、TXT 格式，大小不超过 50MB</div>
               <div v-if="docConfig.type || docConfig.about_text" class="config-summary">
@@ -513,9 +515,39 @@
               <el-alert
                 title="翻译完成"
                 type="success"
-                :description="`文档 ${fileList[0]?.name} 已成功翻译为 ${languageMap[targetLang]}，共 ${docTranslatedData.paragraph_count} 段`"
+                :description="`已成功翻译`"
                 :closable="false"
               />
+              
+              <!-- 显示原始文件和处理后文件的下载链接 -->
+              <div class="file-download-section">
+                <h4>文件下载</h4>
+                <div class="file-links">
+                  <div v-if="originalFileInfo" class="file-link-item">
+                    <el-button 
+                      type="primary" 
+                      :icon="Download" 
+                      @click="downloadOriginalFile"
+                      :loading="downloadingOriginal"
+                    >
+                      下载原始文件 
+                    </el-button>
+                    <span class="file-info">({{ formatFileSize(originalFileInfo.size) }})</span>
+                  </div>
+                  
+                  <div v-if="processedFileInfo" class="file-link-item">
+                    <el-button 
+                      type="success" 
+                      :icon="Download" 
+                      @click="downloadProcessedFile"
+                      :loading="downloadingProcessed"
+                    >
+                      下载处理后文件 
+                    </el-button>
+                    <span class="file-info">({{ formatFileSize(processedFileInfo.size) }})</span>
+                  </div>
+                </div>
+              </div>
               
               <!-- 文档内容预览 -->
               <div v-if="docContent.content || docContent.transcontent" class="document-content-preview">
@@ -587,7 +619,7 @@
                   </el-descriptions>
                 </div>
               </div>
-              
+           
               <div v-if="docTranslatedData.preview && docTranslatedData.preview.length > 0" class="preview-section">
                 <h4>预览前 5 段翻译结果：</h4>
                 <div v-for="(item, index) in docTranslatedData.preview" :key="index" class="preview-item">
@@ -667,9 +699,15 @@ const imageUrl = ref('')
 const imageResult = ref('')
 
 // 文档相关
+const docUploaderRef = ref()
+const uploadKey = ref(0)
 const fileList = ref<any[]>([])
 const docResult = ref(false)
 const docTranslatedData = ref<any>(null)
+const originalFileInfo = ref<any>(null)
+const processedFileInfo = ref<any>(null)
+const downloadingOriginal = ref(false)
+const downloadingProcessed = ref(false)
 
 // 文档配置
 const docConfig = ref({
@@ -1086,6 +1124,9 @@ const handleDocRemove = () => {
   fileList.value = []
   docResult.value = false
   docTranslatedData.value = null
+  
+  // 重置上传组件状态
+  uploadKey.value++
 }
 
 // 文档选择变化
@@ -1159,6 +1200,38 @@ const handleDocChange = async (file: any, fileList: any[]) => {
 
       // 加载该文件的保存内容
       await loadSavedDocContent()
+      
+      // 上传成功后，更新fileList以包含当前文件
+      fileList.value = [file]
+      
+      // 如果上传的响应中包含处理后的文件路径，说明文档已被处理
+      if (uploadData.processed_file_path) {
+        // 设置文档结果为true，以便显示结果面板
+        docResult.value = true
+        
+        // 设置翻译数据（使用上传的数据）
+        docTranslatedData.value = uploadData
+        
+        // 保存原始文件和处理后文件的信息
+        originalFileInfo.value = {
+          id: uploadData.id,
+          name: uploadData.original_name,
+          path: uploadData.file_path,
+          size: uploadData.file_size,
+          type: uploadData.type
+        }
+        
+        processedFileInfo.value = {
+          id: uploadData.id,
+          name: uploadData.processed_file_name,
+          path: uploadData.processed_file_path,
+          size: uploadData.file_size,
+          type: uploadData.type
+        }
+        
+        console.log('文档已处理，显示处理后文件下载链接');
+        ElMessage.success(`文档处理完成，共 ${uploadData.paragraph_count || 0} 段`)
+      }
     } else {
       console.error('上传失败:', message)
       ElMessage.error(message)
@@ -1217,8 +1290,34 @@ const translateDocument = async () => {
       if (response.data.code === 200 || response.data.code === 2000) {
         if (docConfig.value.transtask) {
           // 翻译结果
+          console.log('API响应数据:', response.data.data); // 调试信息
           docTranslatedData.value = response.data.data
           docResult.value = true
+          
+          // 保存原始文件和处理后文件的信息
+          originalFileInfo.value = {
+            id: response.data.data.id,
+            name: response.data.data.original_name,
+            path: response.data.data.file_path,
+            size: response.data.data.file_size,
+            type: response.data.data.type
+          }
+          
+          console.log('原始文件信息:', originalFileInfo.value); // 调试信息
+          
+          if (response.data.data.processed_file_path) {
+            processedFileInfo.value = {
+              id: response.data.data.id,
+              name: response.data.data.processed_file_name,
+              path: response.data.data.processed_file_path,
+              size: response.data.data.file_size, // 使用原始文件大小作为参考
+              type: response.data.data.type
+            }
+            console.log('处理后文件信息:', processedFileInfo.value); // 调试信息
+          } else {
+            console.log('无处理后文件路径'); // 调试信息
+          }
+          
           ElMessage.success(`文档翻译完成，共 ${response.data.data.paragraph_count} 段`)
         } else {
           // 上传结果
@@ -1263,6 +1362,68 @@ const downloadDocument = async () => {
   } catch (error: any) {
     console.error('下载文档错误:', error)
     ElMessage.error(error.message || '下载文档失败')
+  }
+}
+
+// 下载原始文件
+const downloadOriginalFile = async () => {
+  if (!originalFileInfo.value || !originalFileInfo.value.path) {
+    ElMessage.warning('没有可下载的原始文件')
+    return
+  }
+
+console.log(originalFileInfo)
+  try {
+    downloadingOriginal.value = true
+    
+    // 构建下载URL
+    const downloadUrl = `http://localhost:8000/media/${originalFileInfo.value.path}`
+    console.log(downloadUrl)
+    
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = originalFileInfo.value.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    ElMessage.success('原始文件下载中...')
+  } catch (error: any) {
+    console.error('下载原始文件错误:', error)
+    ElMessage.error(error.message || '下载原始文件失败')
+  } finally {
+    downloadingOriginal.value = false
+  }
+}
+
+// 下载处理后文件
+const downloadProcessedFile = async () => {
+  if (!processedFileInfo.value || !processedFileInfo.value.path) {
+    ElMessage.warning('没有可下载的处理后文件')
+    return
+  }
+
+  try {
+    downloadingProcessed.value = true
+    
+    // 构建下载URL
+ 
+    const downloadUrl = `http://localhost:8000/media/${processedFileInfo.value.path}`
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = processedFileInfo.value.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    ElMessage.success('处理后文件下载中...')
+  } catch (error: any) {
+    console.error('下载处理后文件错误:', error)
+    ElMessage.error(error.message || '下载处理后文件失败')
+  } finally {
+    downloadingProcessed.value = false
   }
 }
 
@@ -1423,6 +1584,9 @@ const clearFile = () => {
   }
   showContentEditor.value = false
   // 保留配置供下次使用
+  
+  // 重置上传组件状态
+  uploadKey.value++
 }
 
 // 修改第998行的 handleDocChange 函数，在函数末尾添加加载内容功能
@@ -2171,4 +2335,55 @@ const handleImageSuccess = () => {
     gap: 8px;
   }
 }
+
+/* 文件下载部分 */
+.file-download-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fc;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+}
+
+.file-download-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #303133;
+  font-weight: 600;
+}
+
+.file-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.file-link-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-info {
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .file-link-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .file-link-item .el-button {
+    width: 100%;
+  }
+  
+  .file-info {
+    align-self: flex-start;
+  }
+}
+
 </style>
