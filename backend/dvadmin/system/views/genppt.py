@@ -146,9 +146,29 @@ class genPPT():
         title_slide_layout = prs.slide_layouts[0]  # 标题页
         slide1 = prs.slides.add_slide(title_slide_layout)
 
-        # 设置纯色背景
-        slide1.background.fill.solid()
-        slide1.background.fill.fore_color.rgb = theme_colors['bg_color']
+        # 设置背景图片
+        bg_img_path = "d:/ai/bg.png"
+        if os.path.exists(bg_img_path):
+            # 使用fill_picture方法设置背景图片，避免遮挡文本
+            from pptx.dml.fill import FillFormat
+            from pptx.enum.dml import MSO_FILL
+            from pptx.enum.dml import PP_FILL
+            
+            # 设置图片填充背景
+            background = slide1.background
+            fill = background.fill
+            fill.solid()  # 先设置为纯色
+            fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景，确保文本可见
+            
+            # 添加图片到幻灯片底层
+            pic = slide1.shapes.add_picture(bg_img_path, 0, 0, prs.slide_width, prs.slide_height)
+            # 通过调整z-order将图片置于底层
+            slide1.shapes._spTree.remove(pic._element)
+            slide1.shapes._spTree.insert(0, pic._element)  # 插入到最底层
+        else:
+            # 如果背景图片不存在，设置纯色背景
+            slide1.background.fill.solid()
+            slide1.background.fill.fore_color.rgb = theme_colors['bg_color']
 
         # 设置主标题（使用AI生成的标题）
         title1 = slide1.shapes.title
@@ -167,7 +187,7 @@ class genPPT():
             subtitle1.text = ppt_subtitle
         else:
             # 使用默认格式
-            subtitle1.text = f"专业术语详解 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
+            subtitle1.text = f"专业术语详解1 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
         
         subtitle1_text_frame = subtitle1.text_frame.paragraphs[0]
         subtitle1_text_frame.font.name = font_name
@@ -215,9 +235,14 @@ class genPPT():
             blank_layout = prs.slide_layouts[6]  # 空白页
             slide = prs.slides.add_slide(blank_layout)
 
-            # 设置背景色
-            slide.background.fill.solid()
-            slide.background.fill.fore_color.rgb = theme_colors['bg_color']
+            # 设置背景图片
+            bg_img_path = "d:/ai/bg2.png"
+            if os.path.exists(bg_img_path):
+                slide.shapes.add_picture(bg_img_path, 0, 0, prs.slide_width, prs.slide_height)
+            else:
+                # 如果背景图片不存在，设置纯色背景
+                slide.background.fill.solid()
+                slide.background.fill.fore_color.rgb = theme_colors['bg_color']
 
             # 添加标题背景框
             title_box = slide.shapes.add_shape(
@@ -408,8 +433,30 @@ class genPPT():
         # ===================== 4. 创建结束页（版式2：节标题） =====================
         section_layout = prs.slide_layouts[2]
         slide_end = prs.slides.add_slide(section_layout)
-        slide_end.background.fill.solid()
-        slide_end.background.fill.fore_color.rgb = theme_colors['primary_color']
+        
+        # 设置背景图片
+        bg_img_path = "d:/ai/bg.png"
+        if os.path.exists(bg_img_path):
+            # 使用fill_picture方法设置背景图片，避免遮挡文本
+            from pptx.dml.fill import FillFormat
+            from pptx.enum.dml import MSO_FILL
+            from pptx.enum.dml import PP_FILL
+            
+            # 设置图片填充背景
+            background = slide_end.background
+            fill = background.fill
+            fill.solid()  # 先设置为纯色
+            fill.fore_color.rgb = RGBColor(255, 255, 255)  # 白色背景，确保文本可见
+            
+            # 添加图片到幻灯片底层
+            pic = slide_end.shapes.add_picture(bg_img_path, 0, 0, prs.slide_width, prs.slide_height)
+            # 通过调整z-order将图片置于底层
+            slide_end.shapes._spTree.remove(pic._element)
+            slide_end.shapes._spTree.insert(0, pic._element)  # 插入到最底层
+        else:
+            # 如果背景图片不存在，设置纯色背景
+            slide_end.background.fill.solid()
+            slide_end.background.fill.fore_color.rgb = theme_colors['primary_color']
 
         title_end = slide_end.shapes.title
         title_end.text = "谢谢观看"
