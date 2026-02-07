@@ -124,7 +124,11 @@ def process_word_with_format(input_path, output_path, source_lang='zh', target_l
                     if para.text.strip():
                         # 翻译表格中的文本
                         original_text = para.text
+                        print(f"表格原文本: {original_text}")
                         modified_text = trans(original_text, source_lang, target_lang)
+                        if modified_text == "" or not modified_text:
+                            modified_text = original_text
+                        print(f"表格新文本: {modified_text}")
                         para.text = modified_text
     
     # 4. 处理文档中的图片
