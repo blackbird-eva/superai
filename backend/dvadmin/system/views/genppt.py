@@ -167,30 +167,48 @@ class genPPT():
             slide1.background.fill.fore_color.rgb = theme_colors['bg_color']
 
         # 设置主标题（使用AI生成的标题）
-        title1 = slide1.shapes.title
-        title1.text = ppt_title
-        title1_text_frame = title1.text_frame.paragraphs[0]
-        title1_text_frame.font.name = font_name
-        title1_text_frame.font.size = Pt(46)
-        title1_text_frame.font.bold = True
-        title1_text_frame.font.color.rgb = theme_colors['primary_color']
-        title1_text_frame.alignment = PP_ALIGN.CENTER
+        # 删除原来的标题占位符，创建新的文本框以精确控制位置
+        title_placeholder = slide1.shapes.title
+        title_placeholder.text = ""
+        
+        # 创建新的文本框，向上移动约100px（~1.4英寸），并设为白色
+        title_left = Inches(0.5)
+        title_top = Inches(1.0)  # 原来默认位置约为2.0英寸，现在改为1.0英寸，向上移动约1英寸(约72px)
+        title_width = Inches(9)   # 保持宽度
+        title_height = Inches(1.2)  # 高度调整以适应内容
+        
+        title_box = slide1.shapes.add_textbox(title_left, title_top, title_width, title_height)
+        title_frame = title_box.text_frame
+        title_frame.text = ppt_title
+        title_frame.paragraphs[0].font.name = font_name
+        title_frame.paragraphs[0].font.size = Pt(46)
+        title_frame.paragraphs[0].font.bold = True
+        title_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)  # 白色文字
+        title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        title_frame.word_wrap = True
 
         # 设置副标题（使用AI生成的副标题，如果没有则使用默认格式）
-        subtitle1 = slide1.placeholders[1]
+        # 创建新的副标题文本框，向上移动并与主标题协调
+        subtitle_left = Inches(0.5)
+        subtitle_top = Inches(2.3)  # 在主标题下方
+        subtitle_width = Inches(9)
+        subtitle_height = Inches(0.8)
+        
+        subtitle_box = slide1.shapes.add_textbox(subtitle_left, subtitle_top, subtitle_width, subtitle_height)
+        subtitle_frame = subtitle_box.text_frame
         if ppt_subtitle:
             # 使用AI生成的副标题
-            subtitle1.text = ppt_subtitle
+            subtitle_frame.text = ppt_subtitle
         else:
             # 使用默认格式
-            subtitle1.text = f"专业术语详解1 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
+            subtitle_frame.text = f"专业术语详解1 | {theme_colors['name']}\n{datetime.now().strftime('%Y年%m月')}"
         
-        subtitle1_text_frame = subtitle1.text_frame.paragraphs[0]
-        subtitle1_text_frame.font.name = font_name
-        subtitle1_text_frame.font.size = Pt(18)
-        subtitle1_text_frame.font.color.rgb = RGBColor(102, 102, 102)
-        subtitle1_text_frame.alignment = PP_ALIGN.CENTER
-        subtitle1_text_frame.line_spacing = 1.6
+        subtitle_frame.paragraphs[0].font.name = font_name
+        subtitle_frame.paragraphs[0].font.size = Pt(18)
+        subtitle_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)  # 白色文字
+        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        subtitle_frame.paragraphs[0].line_spacing = 1.6
+        subtitle_frame.word_wrap = True
 
         # 添加顶部装饰形状
         top_deco = slide1.shapes.add_shape(
@@ -240,25 +258,24 @@ class genPPT():
                 slide.background.fill.solid()
                 slide.background.fill.fore_color.rgb = theme_colors['bg_color']
 
-            # 添加标题背景框
-            title_box = slide.shapes.add_shape(
-                MSO_SHAPE.ROUNDED_RECTANGLE,
-                Inches(0.5), Inches(0.3), Inches(9), Inches(0.9)
-            )
-            title_box.fill.solid()
-            title_box.fill.fore_color.rgb = theme_colors['primary_color']
-            title_box.line.fill.background()
-
-            # 设置幻灯片标题
+            # 设置幻灯片标题（无背景框，只有黑色文字）
             slide_title = slide_data.get('title', f'内容 {slide_idx + 1}')
-            title_text_frame = title_box.text_frame
-            title_text_frame.text = slide_title
-            title_paragraph = title_text_frame.paragraphs[0]
-            title_paragraph.font.name = font_name
-            title_paragraph.font.size = Pt(28)
-            title_paragraph.font.bold = True
-            title_paragraph.font.color.rgb = RGBColor(255, 255, 255)
-            title_paragraph.alignment = PP_ALIGN.CENTER
+            
+            # 创建文本框而不是带背景的形状
+            title_left = Inches(0.5)
+            title_top = Inches(0.8)
+            title_width = Inches(9)
+            title_height = Inches(0.9)
+            
+            title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
+            title_frame = title_box.text_frame
+            title_frame.text = slide_title
+            title_frame.paragraphs[0].font.name = font_name
+            title_frame.paragraphs[0].font.size = Pt(28)
+            title_frame.paragraphs[0].font.bold = True
+            title_frame.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)  # 黑色文字
+            title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+            title_frame.word_wrap = True
 
             # 根据内容类型选择布局
             content_type = slide_data.get('type', 'text')
@@ -450,13 +467,25 @@ class genPPT():
             slide_end.background.fill.solid()
             slide_end.background.fill.fore_color.rgb = theme_colors['primary_color']
 
+        # 清除原有的标题占位符
         title_end = slide_end.shapes.title
-        title_end.text = "谢谢观看"
-        title_end.text_frame.paragraphs[0].font.name = font_name
-        title_end.text_frame.paragraphs[0].font.size = Pt(52)
-        title_end.text_frame.paragraphs[0].font.bold = True
-        title_end.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
-        title_end.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        title_end.text = ""
+        
+        # 创建新的标题文本框，使用白色文字
+        end_title_left = Inches(0.5)
+        end_title_top = Inches(2.0)
+        end_title_width = Inches(9)
+        end_title_height = Inches(1.5)
+        
+        end_title_box = slide_end.shapes.add_textbox(end_title_left, end_title_top, end_title_width, end_title_height)
+        end_title_frame = end_title_box.text_frame
+        end_title_frame.text = "谢谢观看"
+        end_title_frame.paragraphs[0].font.name = font_name
+        end_title_frame.paragraphs[0].font.size = Pt(52)
+        end_title_frame.paragraphs[0].font.bold = True
+        end_title_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)  # 白色文字
+        end_title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        end_title_frame.word_wrap = True
 
         # ===================== 5. 保存PPT文件 =====================
         date_path = datetime.now().strftime('%Y/%m/%d')
