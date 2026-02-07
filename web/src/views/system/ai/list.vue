@@ -27,11 +27,11 @@
     <div class="category-section">
       <el-tabs v-model="activeCategory" @tab-change="handleCategoryChange" class="category-tabs">
         <el-tab-pane label="全部" name="all"></el-tab-pane>
-        <el-tab-pane label="写作助手" name="writing"></el-tab-pane>
-        <el-tab-pane label="编程开发" name="coding"></el-tab-pane>
-        <el-tab-pane label="学习辅导" name="learning"></el-tab-pane>
-        <el-tab-pane label="生活服务" name="life"></el-tab-pane>
-        <el-tab-pane label="商业分析" name="business"></el-tab-pane>
+        <el-tab-pane label="研发助手" name="writing"></el-tab-pane>
+        <el-tab-pane label="文档助手" name="coding"></el-tab-pane>
+        <el-tab-pane label="研发卖家" name="learning"></el-tab-pane>
+        <el-tab-pane label="行业知识" name="life"></el-tab-pane>
+        <el-tab-pane label="图书馆" name="business"></el-tab-pane>
         <el-tab-pane label="创意设计" name="creative"></el-tab-pane>
       </el-tabs>
     </div>
@@ -160,10 +160,12 @@ const categoryMap: { [key: string]: string } = {
 const initAgents = () => {
   agents.value = [
     // 写作助手
+    
+    
     {
       id: '1',
-      name: '文案生成器',
-      description: '快速生成营销文案、广告语、产品介绍等，提升写作效率',
+      name: '直升所默认',
+      description: '专业的单位文档和直升机理论知识',
       icon: '✍️',
       iconBg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       category: 'writing',
@@ -175,8 +177,8 @@ const initAgents = () => {
     },
     {
       id: '2',
-      name: '文章润色助手',
-      description: '优化文章表达、调整语言风格、修正语法错误',
+      name: '直升机文档编写',
+      description: '专业的单位文档和直升机理论知识,编写各类直升机文档',
       icon: '📝',
       iconBg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       category: 'writing',
@@ -188,8 +190,8 @@ const initAgents = () => {
     },
     {
       id: '3',
-      name: '邮件撰写专家',
-      description: '专业撰写商务邮件、求职信、通知等各类邮件',
+      name: '直升机研发大全',
+      description: '顶级直升机理论专家',
       icon: '📧',
       iconBg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       category: 'writing',
@@ -203,8 +205,8 @@ const initAgents = () => {
     // 编程开发
     {
       id: '4',
-      name: '代码生成器',
-      description: '根据需求自动生成代码片段，支持多种编程语言',
+      name: '发动机专业',
+      description: '直升机发动机各类理论知识',
       icon: '💻',
       iconBg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
       category: 'coding',
@@ -216,8 +218,8 @@ const initAgents = () => {
     },
     {
       id: '5',
-      name: 'Bug调试助手',
-      description: '快速定位和修复代码bug，提供解决方案建议',
+      name: 'PPT生成',
+      description: '直升所与直升机PPT生成',
       icon: '🔍',
       iconBg: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
       category: 'coding',
@@ -229,8 +231,8 @@ const initAgents = () => {
     },
     {
       id: '6',
-      name: '代码审查专家',
-      description: '进行代码质量检查，提供优化建议和最佳实践',
+      name: '直升所翻译',
+      description: '直升所专业翻译',
       icon: '📋',
       iconBg: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
       category: 'coding',
@@ -244,8 +246,8 @@ const initAgents = () => {
     // 学习辅导
     {
       id: '7',
-      name: '英语口语教练',
-      description: '提升英语口语水平，提供发音纠正和对话练习',
+      name: '飞行动力学卖家',
+      description: '飞行动力学理论知识库',
       icon: '🗣️',
       iconBg: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
       category: 'learning',
@@ -257,8 +259,8 @@ const initAgents = () => {
     },
     {
       id: '8',
-      name: '数学解题助手',
-      description: '解答数学问题，提供详细解题步骤和方法',
+      name: '图书馆',
+      description: '直升所专业图书馆',
       icon: '🔢',
       iconBg: 'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
       category: 'learning',
