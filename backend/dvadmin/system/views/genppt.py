@@ -443,9 +443,9 @@ class genPPT():
                     note = notes_slide.notes_text_frame
                     note.text = note_text
 
-        # ===================== 4. 创建结束页（版式2：节标题） =====================
-        section_layout = prs.slide_layouts[2]
-        slide_end = prs.slides.add_slide(section_layout)
+        # ===================== 4. 创建结束页（使用空白版式避免占位符） =====================
+        blank_layout = prs.slide_layouts[6]  # 使用空白版式
+        slide_end = prs.slides.add_slide(blank_layout)
         
         # 设置背景图片
         bg_img_path = "d:/ai/bg.png"
@@ -467,11 +467,7 @@ class genPPT():
             slide_end.background.fill.solid()
             slide_end.background.fill.fore_color.rgb = theme_colors['primary_color']
 
-        # 清除原有的标题占位符
-        title_end = slide_end.shapes.title
-        title_end.text = ""
-        
-        # 创建新的标题文本框，使用白色文字
+        # 创建标题文本框，使用白色文字（不使用任何占位符）
         end_title_left = Inches(0.5)
         end_title_top = Inches(2.0)
         end_title_width = Inches(9)
