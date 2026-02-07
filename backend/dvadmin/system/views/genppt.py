@@ -494,9 +494,9 @@ class genPPT():
             return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
         
         try:
-            # 尝试导入大模型库（这里使用示例，实际根据你的大模型实现调整）
-            # 假设你有一个LLM服务调用方法
-            from dvadmin.utils.llm_service import call_llm
+            # 使用RAG系统和AI服务替代call_llm
+            from .rag import RAGSystem
+            from .ai_service import SiliconFlowAIService
             
             # 构建提示词
             prompt = f"""
@@ -556,18 +556,110 @@ class genPPT():
 5. 返回纯JSON格式，不要有其他说明文字
 """
 
-            # 调用大模型
-            logger.info(f"开始调用大模型生成PPT内容，主题：{theme}，页数：{slide_count}")
-            logger.info(f"调用大模型生成PPT内容，提示词：{prompt}")
-            llm_response = call_llm(prompt)
+            # 使用RAG系统和AI服务生成PPT内容
+            logger.info(f"开始使用RAG系统和AI服务生成PPT内容，主题：{theme}，页数：{slide_count}")
             
-            # 解析返回的JSON
-            try:
-                ai_content = json.loads(llm_response)
-                logger.info(f"大模型成功生成内容，共{len(ai_content.get('slides', []))}页")
+            # 初始化RAG系统和AI服务
+            rag_system = RAGSystem(persist_directory="d:/ai/chroma_db")
+            rag_system.create_collection("tj_docs")  # 使用与aichat相同的集合
+            ai_service = SiliconFlowAIService()
+            
+            # 在向量数据库中搜索相关文档
+            search_results = rag_system.search(text_content, n_results=5)  # 获取5个最相关的结果
+            
+            # 构建上下文
+            context_texts = []
+            for i, result in enumerate(search_results, 1):
+                context_texts.append(f"参考资料 {i}: {result['document']}")
+            
+            # 构建提示词，结合检索到的上下文
+            if context_texts:
+                context_str = "\n".join(context_texts)
+                
+                # 使用AI服务基于上下文生成PPT内容
+                enhanced_prompt = f"""
+基于以下资料生成{slide_count}页PPT的结构化内容：
+
+主题风格：{theme}
+语言：中文
+
+参考资料：
+{context_str}
+
+原始文本内容：
+{text_content[:3000]}
+
+请严格按照以下JSON格式返回内容，不要有任何其他说明文字：
+{{
+    "title":"幻灯片总标题",
+    "subtilt":"幻灯片副标题",
+    "slides": [
+        {{
+            "type": "bullet_points",
+            "title": "幻灯片标题",
+            "content": ["要点1", "要点2", "要点3"],
+            "note": "备注信息"
+        }},
+        {{
+            "type": "two_column",
+            "title": "双栏标题",
+            "left_title": "左栏标题",
+            "left_content": ["左栏要点1", "左栏要点2"],
+            "right_title": "右栏标题",
+            "right_content": ["右栏要点1", "右栏要点2"],
+            "note": "备注信息"
+        }},
+        {{
+            "type": "chart",
+            "title": "图表标题",
+            "chart_data": {{
+                "categories": ["类别1", "类别2", "类别3"],
+                "values": [100, 200, 150]
+            }},
+            "note": "备注信息"
+        }},
+        {{
+            "type": "summary",
+            "title": "总结标题",
+            "content": "总结文本内容...",
+            "highlight": "关键要点",
+            "note": "备注信息"
+        }}
+    ]
+}}
+
+注意：
+1. 幻灯片类型包括：bullet_points（要点列表）、two_column（双栏）、chart（图表）、summary（总结）
+2. 确保内容简洁、专业
+3. 每个要点不超过50个字
+4. 图表页只在include_charts为True时使用
+5. 返回纯JSON格式，不要有其他说明文字
+"""
+            else:
+                # 如果没有找到相关文档，使用原始提示词
+                enhanced_prompt = prompt
+
+            # 调用AI服务
+            messages = [
+                {"role": "system", "content": "你是一个专业的PPT内容生成助手，专门负责将文本内容转换为结构化的PPT内容。"},
+                {"role": "user", "content": enhanced_prompt}
+            ]
+            
+            ai_response = ai_service.chat_completion(messages)
+            
+            # 提取AI生成的内容
+            ai_content_raw = ai_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # 从AI响应中提取JSON部分
+            import re
+            json_match = re.search(r'\{.*\}', ai_content_raw, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                ai_content = json.loads(json_str)
+                logger.info(f"AI服务成功生成内容，共{len(ai_content.get('slides', []))}页")
                 return ai_content
-            except json.JSONDecodeError as e:
-                logger.error(f"大模型返回的JSON解析失败: {e}")
+            else:
+                logger.error("AI服务返回的内容中未找到有效的JSON格式")
                 # 降级到规则生成
                 return self._generate_content_by_rules(text_content, theme, slide_count, paragraphs)
                 
