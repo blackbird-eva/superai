@@ -16,6 +16,9 @@ from django.http import HttpResponse
 from dvadmin.utils.json_response import SuccessResponse, ErrorResponse
 from dvadmin.system.models import Docxfile
 
+# 导入Word文档处理模块
+from .word_process import wordwork
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,6 +134,21 @@ class FileUploadView(APIView):
                 status='uploaded'
             )
 
+            # 如果是Word文档且需要处理，则调用wordwork函数处理
+            processed_file_path = None
+            if file_ext == 'docx' and docxfile.transtask:
+                try:
+                    # 获取完整文件路径
+                    full_input_path = os.path.join(settings.MEDIA_ROOT, file_path)
+                    # 调用wordwork处理函数，传入源语言和目标语言
+                    processed_full_path = wordwork(full_input_path, docxfile.source_language, docxfile.target_language)
+                    # 获取相对路径
+                    processed_file_path = os.path.relpath(processed_full_path, settings.MEDIA_ROOT)
+                    logger.info(f"Word文档处理完成: {file.name} -> {os.path.basename(processed_full_path)}")
+                except Exception as e:
+                    logger.error(f"Word文档处理失败: {str(e)}")
+                    # 如果处理失败，继续执行而不抛出异常
+
             logger.info(f"文件上传成功: {file.name} ({file.size} bytes)")
 
             # 准备响应数据
@@ -151,6 +169,11 @@ class FileUploadView(APIView):
                 'target_language': self.safe_str(docxfile.target_language),
                 'upload_time': docxfile.create_datetime.strftime('%Y-%m-%d %H:%M:%S') if docxfile.create_datetime else None
             }
+
+            # 如果有处理过的文件，添加到响应数据中
+            if processed_file_path:
+                response_data['processed_file_path'] = processed_file_path
+                response_data['processed_file_name'] = os.path.basename(processed_file_path)
 
             logger.info(f"准备返回响应数据，字段类型检查:")
             for key, value in response_data.items():
@@ -176,7 +199,7 @@ class FileUploadView(APIView):
 
             return SuccessResponse(
                 data=response_data,
-                msg="上传成功"
+                msg="文件上传成功"
             )
 
         except Exception as e:
