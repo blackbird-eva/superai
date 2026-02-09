@@ -1,6 +1,39 @@
 <template>
   <div > 
-    3d在线显示示例
+      <div class="demo">
+        <ul>
+          <li>
+            <a href="http://localhost:8000/static/threejs/examples/index.html" target="_blank">
+                <img src="http://localhost:8000/static/threejs/examples/screenshots/webgl_z10.jpg">
+                <br/>
+                整体显示与截图例子
+            </a>
+          </li>
+
+                    <li>
+            <a href="http://localhost:8000/static/threejs/examples/index.html" target="_blank">
+                <img src="http://localhost:8000/static/threejs/examples/screenshots/webgl_z10L1.jpg">
+                   <br/>
+                部件显示例子
+            </a>
+          </li>
+
+                    <li>
+            <a href="http://localhost:8000/static/threejs/examples/index.html" target="_blank">
+                <img src="http://localhost:8000/static/threejs/examples/screenshots/webgpu_tsl_angular_slicing.jpg">
+                    <br/>
+                部件显示例子
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <div style="margin-top: 4rem; text-align: center;">
+          <a href="http://localhost:8000/static/threejs/examples/webgl_loader_3dstext.html" target="_blank">
+            文档中调用3D显示的例子
+          </a>
+        </div>
+      </div>
   </div>
 </template>
 
@@ -8,6 +41,10 @@
 </script>
 
 <style scoped>
+.demo {}
+.demo ul{ margin-top:4rem ; display:  flex; flex-direction:  row ; margin-left: 5rem;}
+.demo ul li {  width: 280px ;}
+.demo ul li img { max-width: 250px; max-height: 180px ; }
 .three-d-edit-page {
   padding: 20px;
   background: #f5f7fa;
