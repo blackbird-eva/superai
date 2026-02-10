@@ -21,9 +21,22 @@ class SiliconFlowAIService:
         """
 
         self.base_url = "https://api.siliconflow.cn/v1"
+        
+
+
         self.model = 'Qwen/Qwen3-VL-32B-Instruct'
+        # this model is too slow .
+        self.model = "Pro/deepseek-ai/DeepSeek-V3.2"
         self.api_key="sk-fgrddnapdygghksyavgivjnimvxugcgeashotgibhuzbcnrn"
-   
+
+# xulei's key 
+        self.api_key = "sk-ovlbuqdmtlbdqgjaorccckeljwkomfsvolukteylzzlzfgcl"
+
+
+### ali 
+        self.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        self.model = "qwen-plus"
+        self.api_key = "sk-1065ae7327d84478815f267ef69ca5db" # ali jiao 
     
     def chat_completion(
         self,
