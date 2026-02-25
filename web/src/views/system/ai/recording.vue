@@ -435,7 +435,7 @@ import {
 } from '@element-plus/icons-vue'
 import {
   StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
-  SaveRecordingFile
+  SaveRecordingFile, DownloadRecordingFile
 } from './apimeeting'
 
 // 搜索关键词
@@ -876,24 +876,45 @@ const stopRecording = async () => {
     // 调用保存录音文件接口
     if (blob) {
       try {
+        ElMessage.info('正在上传录音文件，请稍候...')
+        
         // 将 Blob 转换为 Base64
         const reader = new FileReader()
         reader.readAsDataURL(blob)
+        
         reader.onloadend = async () => {
           const base64data = reader.result as string
           try {
-            await SaveRecordingFile({
+            const response = await SaveRecordingFile({
               meeting_id: selectedMeeting.value.id,
               title: selectedMeeting.value.title,
               recording_time: recordingTime.value,
               file_data: base64data
             })
+            
+            // 如果上传成功，保存返回的文件路径到录音记录
+            if (response.data) {
+              const lastRecording = selectedMeeting.value.recordings[selectedMeeting.value.recordings.length - 1]
+              if (lastRecording) {
+                lastRecording.file_path = response.data.file_path
+                lastRecording.file_url = response.data.file_url
+              }
+            }
+            
+            ElMessage.success(`录音已保存，文件大小: ${response.data?.file_size || '未知'}`)
           } catch (error: any) {
             console.error('保存录音文件失败:', error)
+            ElMessage.error(error.msg || '上传录音文件失败，但文件已保存在本地')
           }
         }
+        
+        reader.onerror = () => {
+          console.error('读取音频文件失败')
+          ElMessage.warning('读取音频文件失败，但文件已保存在本地')
+        }
       } catch (error: any) {
-        console.error('保存录音文件失败:', error)
+        console.error('处理录音文件失败:', error)
+        ElMessage.warning('处理录音文件失败，但文件已保存在本地')
       }
     }
   }
@@ -1061,56 +1082,118 @@ const saveNotes = () => {
 }
 
 // 播放录音
-const playRecording = (rec: any) => {
+const playRecording = async (rec: any) => {
   if (!selectedMeeting.value) {
     ElMessage.warning('请选择会议')
     return
   }
 
-  if (rec.audioUrl) {
-    const audio = new Audio(rec.audioUrl)
-    audio.play()
-    ElMessage.success(`正在播放录音: ${rec.time}`)
-  } else if (rec.audioBlob) {
-    const url = URL.createObjectURL(rec.audioBlob)
-    const audio = new Audio(url)
-    audio.play()
-    audio.onended = () => {
-      URL.revokeObjectURL(url)
+  try {
+    let audioUrl = null
+
+    // 优先使用本地的 audioBlob
+    if (rec.audioBlob) {
+      audioUrl = URL.createObjectURL(rec.audioBlob)
+    } else if (rec.audioUrl) {
+      audioUrl = rec.audioUrl
+    } else if (rec.file_url) {
+      // 如果有后台的 file_url，直接使用
+      audioUrl = rec.file_url
+    } else if (rec.file_path) {
+      // 如果有 file_path，从后台下载
+      try {
+        ElMessage.info('正在从服务器加载录音...')
+        const response = await DownloadRecordingFile(rec.file_path)
+        // 创建 Blob URL
+        const blob = new Blob([response], { type: 'audio/wav' })
+        audioUrl = URL.createObjectURL(blob)
+        // 保存到录音记录中，避免重复下载
+        rec.audioBlob = blob
+      } catch (error: any) {
+        console.error('下载录音失败:', error)
+        ElMessage.error('从服务器下载录音失败')
+        return
+      }
     }
-    ElMessage.success(`正在播放录音: ${rec.time}`)
-  } else {
-    ElMessage.warning('该录音是历史数据，请重新录音以获取文件')
+
+    if (audioUrl) {
+      const audio = new Audio(audioUrl)
+      audio.play()
+      ElMessage.success(`正在播放录音: ${rec.time}`)
+      
+      // 如果是临时创建的 URL，在播放结束后释放
+      if (rec.audioBlob || rec.file_path) {
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl)
+        }
+      }
+    } else {
+      ElMessage.warning('该录音没有可用的音频文件')
+    }
+  } catch (error: any) {
+    console.error('播放录音失败:', error)
+    ElMessage.error('播放录音失败')
   }
 }
 
 // 下载录音
-const downloadRecording = (rec: any) => {
+const downloadRecording = async (rec: any) => {
   if (!selectedMeeting.value) {
     ElMessage.warning('请选择会议')
     return
   }
 
-  if (rec.audioBlob) {
-    const url = URL.createObjectURL(rec.audioBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `meeting_${selectedMeeting.value.id}_${rec.time.replace(':', '-')}.wav`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    ElMessage.success(`下载录音: ${rec.time}`)
-  } else if (rec.audioUrl) {
-    const a = document.createElement('a')
-    a.href = rec.audioUrl
-    a.download = `meeting_${selectedMeeting.value.id}_${rec.time.replace(':', '-')}.wav`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    ElMessage.success(`下载录音: ${rec.time}`)
-  } else {
-    ElMessage.warning('该录音是历史数据，请重新录音以获取文件')
+  try {
+    let blob = null
+    let filename = `meeting_${selectedMeeting.value.id}_${rec.time.replace(':', '-')}.wav`
+
+    // 优先使用本地的 audioBlob
+    if (rec.audioBlob) {
+      blob = rec.audioBlob
+    } else if (rec.file_url) {
+      // 如果有后台的 file_url，直接通过链接下载
+      try {
+        ElMessage.info('正在从服务器下载录音...')
+        const response = await DownloadRecordingFile(rec.file_url)
+        blob = new Blob([response], { type: 'audio/wav' })
+      } catch (error: any) {
+        console.error('从 file_url 下载录音失败:', error)
+        ElMessage.error('从服务器下载录音失败')
+        return
+      }
+    } else if (rec.file_path) {
+      // 如果有 file_path，从后台下载
+      try {
+        ElMessage.info('正在从服务器下载录音...')
+        const response = await DownloadRecordingFile(rec.file_path)
+        blob = new Blob([response], { type: 'audio/wav' })
+      } catch (error: any) {
+        console.error('下载录音失败:', error)
+        ElMessage.error('从服务器下载录音失败')
+        return
+      }
+    } else {
+      ElMessage.warning('该录音没有可下载的音频文件')
+      return
+    }
+
+    // 触发下载
+    if (blob) {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      ElMessage.success(`下载录音: ${rec.time}`)
+    } else {
+      ElMessage.warning('该录音没有可用的音频文件')
+    }
+  } catch (error: any) {
+    console.error('下载录音失败:', error)
+    ElMessage.error('下载录音失败')
   }
 }
 

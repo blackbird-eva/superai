@@ -3,9 +3,19 @@
 会议录音管理接口
 Created on: 2026-01-27
 """
+import os
+import base64
+import logging
+from datetime import datetime
+
 from rest_framework.views import APIView
 from rest_framework.renderers import JSONRenderer
+from django.conf import settings
+from django.http import HttpResponse
+
 from dvadmin.utils.json_response import SuccessResponse, ErrorResponse
+
+logger = logging.getLogger(__name__)
 
 
 class StartRecordingView(APIView):
@@ -213,25 +223,67 @@ class SaveRecordingFileView(APIView):
             if not meeting_id:
                 return ErrorResponse(msg="会议ID不能为空", code=400)
 
+            if not file_data:
+                return ErrorResponse(msg="录音文件数据不能为空", code=400)
+
             print(f"[录音] 保存录音文件 - 会议ID: {meeting_id}, 会议标题: {title}, 录音时长: {recording_time}")
             print(f"[录音] 文件数据长度: {len(file_data)}")
 
-            # 生成文件路径（模拟）
-            file_path = f"/recordings/meeting_{meeting_id}_{recording_time.replace(':', '-')}.wav"
+            # 解码 Base64 数据
+            try:
+                # 移除 Base64 前缀（如果有）
+                if ',' in file_data:
+                    file_data = file_data.split(',')[1]
+                
+                # 将 Base64 数据解码为字节数据
+                audio_bytes = base64.b64decode(file_data)
+                file_size_mb = len(audio_bytes) / (1024 * 1024)
+                print(f"[录音] 解码后文件大小: {file_size_mb:.2f} MB")
+            except Exception as e:
+                logger.error(f"[录音] Base64 解码失败: {str(e)}")
+                return ErrorResponse(msg="录音文件数据格式错误", code=400)
+
+            # 生成文件路径
+            date_path = datetime.now().strftime('%Y/%m/%d')
+            safe_time = recording_time.replace(':', '-')
+            filename = f"meeting_{meeting_id}_{safe_time}.wav"
+            file_path = f"recordings/{date_path}/{filename}"
+            
+            # 确保目录存在
+            full_dir_path = os.path.join(settings.MEDIA_ROOT, f"recordings/{date_path}")
+            os.makedirs(full_dir_path, exist_ok=True)
+
+            # 保存文件到磁盘
+            full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+            with open(full_file_path, 'wb+') as f:
+                f.write(audio_bytes)
+
+            print(f"[录音] 文件已保存到: {full_file_path}")
+
+            # 生成访问 URL
+            file_url = f"{settings.MEDIA_URL}{file_path}"
+
+            print(f"[录音] 文件已保存，URL: {file_url}")
+
+            print("ai")
 
             return SuccessResponse(
                 data={
                     'meeting_id': meeting_id,
                     'title': title,
                     'recording_time': recording_time,
+                    'file_size': f"{file_size_mb:.2f} MB",
                     'file_path': file_path,
-                    'message': '文件已保存'
+                    'file_url': file_url,
+                    'message': '录音文件已保存'
                 },
                 msg="录音文件已保存"
             )
 
         except Exception as e:
-            print(f"[录音] 保存录音文件失败: {str(e)}")
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"[录音] 保存录音文件失败: {str(e)}\n{error_detail}")
             return ErrorResponse(msg=f"保存录音文件失败: {str(e)}", code=500)
 
 
@@ -278,7 +330,6 @@ class DownloadRecordingFileView(APIView):
     """
     authentication_classes = []
     permission_classes = []
-    renderer_classes = [JSONRenderer]
 
     def get(self, request):
         """
@@ -292,16 +343,28 @@ class DownloadRecordingFileView(APIView):
 
             print(f"[录音] 下载录音文件 - 文件路径: {file_path}")
 
-            return SuccessResponse(
-                data={
-                    'file_path': file_path,
-                    'download_url': f'/api/download?path={file_path}',
-                    'message': '下载链接已生成'
-                },
-                msg="获取下载链接成功"
-            )
+            # 安全检查：确保文件路径在允许的目录下
+            if not file_path.startswith('recordings/'):
+                return ErrorResponse(msg="无效的文件路径", code=400)
+
+            full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+
+            if not os.path.exists(full_file_path):
+                return ErrorResponse(msg="文件不存在", code=404)
+
+            # 读取文件并返回
+            with open(full_file_path, 'rb') as f:
+                content = f.read()
+
+            # 设置正确的 MIME 类型
+            response = HttpResponse(content, content_type='audio/wav')
+            filename = os.path.basename(file_path)
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            print(f"[录音] 文件下载成功: {filename} ({len(content)} bytes)")
+            return response
 
         except Exception as e:
-            print(f"[录音] 下载录音文件失败: {str(e)}")
+            logger.error(f"[录音] 下载录音文件失败: {str(e)}")
             return ErrorResponse(msg=f"下载文件失败: {str(e)}", code=500)
 
