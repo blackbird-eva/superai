@@ -433,6 +433,9 @@ import {
   Microphone, VideoPlay, VideoPause, Calendar, Clock, Location, User,
   VideoCamera, SwitchButton, TrendCharts, Files
 } from '@element-plus/icons-vue'
+import {
+  StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark
+} from './apimeeting'
 
 // 搜索关键词
 const searchKeyword = ref('')
@@ -649,6 +652,17 @@ const startRecording = async () => {
     ElMessage.warning('请选择会议')
     return
   }
+
+  // 调用后台接口
+  try {
+    await StartRecording({
+      meeting_id: selectedMeeting.value.id,
+      title: selectedMeeting.value.title
+    })
+  } catch (error: any) {
+    ElMessage.error(error.msg || '调用录音接口失败')
+    return
+  }
   
   try {
     // 初始化音频上下文
@@ -690,7 +704,22 @@ const startRecording = async () => {
 }
 
 // 暂停录音
-const pauseRecording = () => {
+const pauseRecording = async () => {
+  if (!selectedMeeting.value) {
+    return
+  }
+
+  // 调用后台接口
+  try {
+    await PauseRecording({
+      meeting_id: selectedMeeting.value.id,
+      recording_time: recordingTime.value
+    })
+  } catch (error: any) {
+    ElMessage.error(error.msg || '调用暂停录音接口失败')
+    return
+  }
+
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
   }
@@ -711,6 +740,20 @@ const pauseRecording = () => {
 
 // 继续录音
 const resumeRecording = async () => {
+  if (!selectedMeeting.value) {
+    return
+  }
+
+  // 调用后台接口
+  try {
+    await ResumeRecording({
+      meeting_id: selectedMeeting.value.id
+    })
+  } catch (error: any) {
+    ElMessage.error(error.msg || '调用继续录音接口失败')
+    return
+  }
+
   if (selectedMeeting.value) {
     selectedMeeting.value.isRecording = true
     selectedMeeting.value.isPaused = false
@@ -727,7 +770,23 @@ const resumeRecording = async () => {
 }
 
 // 停止录音
-const stopRecording = () => {
+const stopRecording = async () => {
+  if (!selectedMeeting.value) {
+    return
+  }
+
+  // 调用后台接口
+  try {
+    await StopRecording({
+      meeting_id: selectedMeeting.value.id,
+      title: selectedMeeting.value.title,
+      recording_time: recordingTime.value
+    })
+  } catch (error: any) {
+    ElMessage.error(error.msg || '调用停止录音接口失败')
+    return
+  }
+
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
   }
@@ -842,12 +901,28 @@ const simulateRealtimeTranscription = () => {
 
 // 添加标记
 const addMark = () => {
+  if (!selectedMeeting.value) {
+    return
+  }
+
   const markTime = formatRecordingTime(totalRecordingTime.value)
   ElMessageBox.prompt('请输入标记内容', '添加标记', {
     confirmButtonText: '确定',
     cancelButtonText: '取消'
-  }).then(({ value }) => {
+  }).then(async ({ value }) => {
     if (value) {
+      // 调用后台接口
+      try {
+        await AddRecordingMark({
+          meeting_id: selectedMeeting.value.id,
+          mark_time: markTime,
+          label: value
+        })
+      } catch (error: any) {
+        ElMessage.error(error.msg || '调用添加标记接口失败')
+        return
+      }
+
       marks.value.push({
         time: markTime,
         label: value

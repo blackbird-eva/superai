@@ -296,3 +296,6 @@ export function ReadUploadFile(file: File): Promise<string> {
         reader.readAsText(file)
     });
 }
+
+// 导出会议录音相关接口
+export * from './apimeeting';

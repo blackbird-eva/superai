@@ -30,6 +30,10 @@ from dvadmin.system.views.user import UserViewSet
 from dvadmin.system.views.menu_field import MenuFieldViewSet
 from dvadmin.system.views.download_center import DownloadCenterViewSet
 from dvadmin.system.views.aichat import AIChatView
+from dvadmin.system.views.meeting.meeting import (
+    StartRecordingView, PauseRecordingView, ResumeRecordingView,
+    StopRecordingView, AddRecordingMarkView
+)
 
 system_url = routers.SimpleRouter()
 system_url.register(r'menu', MenuViewSet)
@@ -76,6 +80,12 @@ urlpatterns = [
  
     path('mytask/hello/', MyTaskHelloView.as_view()),
     path('aichat/chat/', AIChatView.as_view()),  # AI聊天接口
+    # 会议录音接口
+    path('meeting/recording/start/', StartRecordingView.as_view()),
+    path('meeting/recording/pause/', PauseRecordingView.as_view()),
+    path('meeting/recording/resume/', ResumeRecordingView.as_view()),
+    path('meeting/recording/stop/', StopRecordingView.as_view()),
+    path('meeting/recording/mark/', AddRecordingMarkView.as_view()),
     path('clause/privacy.html', PrivacyView.as_view()),
     path('clause/terms_service.html', TermsServiceView.as_view()),
 ]
