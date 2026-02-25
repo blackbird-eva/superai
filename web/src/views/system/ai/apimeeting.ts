@@ -54,3 +54,37 @@ export function AddRecordingMark(data: { meeting_id: number; mark_time: string; 
         data: data,
     });
 }
+
+/**
+ * 保存录音文件
+ */
+export function SaveRecordingFile(data: { meeting_id: number; title: string; recording_time: string; file_data: string }) {
+    return request({
+        url: '/api/system/meeting/recording/save/',
+        method: 'post',
+        data: data,
+    });
+}
+
+/**
+ * 获取录音文件路径
+ */
+export function GetRecordingFilePath(meeting_id: number) {
+    return request({
+        url: `/api/system/meeting/recording/file/${meeting_id}/`,
+        method: 'get',
+    });
+}
+
+/**
+ * 下载录音文件
+ */
+export function DownloadRecordingFile(file_path: string) {
+    return request({
+        url: '/api/system/meeting/recording/download/',
+        method: 'get',
+        params: { file_path },
+        responseType: 'blob',
+    });
+}
+

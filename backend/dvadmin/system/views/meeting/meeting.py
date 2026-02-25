@@ -190,3 +190,118 @@ class AddRecordingMarkView(APIView):
         except Exception as e:
             print(f"[录音] 添加标记失败: {str(e)}")
             return ErrorResponse(msg=f"添加标记失败: {str(e)}", code=500)
+
+
+class SaveRecordingFileView(APIView):
+    """
+    保存录音文件接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        """
+        保存录音文件
+        """
+        try:
+            meeting_id = request.data.get('meeting_id')
+            title = request.data.get('title', '未知会议')
+            recording_time = request.data.get('recording_time', '00:00:00')
+            file_data = request.data.get('file_data', '')
+
+            if not meeting_id:
+                return ErrorResponse(msg="会议ID不能为空", code=400)
+
+            print(f"[录音] 保存录音文件 - 会议ID: {meeting_id}, 会议标题: {title}, 录音时长: {recording_time}")
+            print(f"[录音] 文件数据长度: {len(file_data)}")
+
+            # 生成文件路径（模拟）
+            file_path = f"/recordings/meeting_{meeting_id}_{recording_time.replace(':', '-')}.wav"
+
+            return SuccessResponse(
+                data={
+                    'meeting_id': meeting_id,
+                    'title': title,
+                    'recording_time': recording_time,
+                    'file_path': file_path,
+                    'message': '文件已保存'
+                },
+                msg="录音文件已保存"
+            )
+
+        except Exception as e:
+            print(f"[录音] 保存录音文件失败: {str(e)}")
+            return ErrorResponse(msg=f"保存录音文件失败: {str(e)}", code=500)
+
+
+class GetRecordingFilePathView(APIView):
+    """
+    获取录音文件路径接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request, meeting_id):
+        """
+        获取录音文件路径
+        """
+        try:
+            if not meeting_id:
+                return ErrorResponse(msg="会议ID不能为空", code=400)
+
+            print(f"[录音] 获取录音文件路径 - 会议ID: {meeting_id}")
+
+            # 生成文件路径（模拟）
+            file_path = f"/recordings/meeting_{meeting_id}.wav"
+            file_url = f"/api/media/recordings/meeting_{meeting_id}.wav"
+
+            return SuccessResponse(
+                data={
+                    'meeting_id': meeting_id,
+                    'file_path': file_path,
+                    'file_url': file_url,
+                    'message': '获取成功'
+                },
+                msg="获取文件路径成功"
+            )
+
+        except Exception as e:
+            print(f"[录音] 获取录音文件路径失败: {str(e)}")
+            return ErrorResponse(msg=f"获取文件路径失败: {str(e)}", code=500)
+
+
+class DownloadRecordingFileView(APIView):
+    """
+    下载录音文件接口
+    """
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        """
+        下载录音文件
+        """
+        try:
+            file_path = request.GET.get('file_path')
+
+            if not file_path:
+                return ErrorResponse(msg="文件路径不能为空", code=400)
+
+            print(f"[录音] 下载录音文件 - 文件路径: {file_path}")
+
+            return SuccessResponse(
+                data={
+                    'file_path': file_path,
+                    'download_url': f'/api/download?path={file_path}',
+                    'message': '下载链接已生成'
+                },
+                msg="获取下载链接成功"
+            )
+
+        except Exception as e:
+            print(f"[录音] 下载录音文件失败: {str(e)}")
+            return ErrorResponse(msg=f"下载文件失败: {str(e)}", code=500)
+

@@ -32,7 +32,8 @@ from dvadmin.system.views.download_center import DownloadCenterViewSet
 from dvadmin.system.views.aichat import AIChatView
 from dvadmin.system.views.meeting.meeting import (
     StartRecordingView, PauseRecordingView, ResumeRecordingView,
-    StopRecordingView, AddRecordingMarkView
+    StopRecordingView, AddRecordingMarkView, SaveRecordingFileView,
+    GetRecordingFilePathView, DownloadRecordingFileView
 )
 
 system_url = routers.SimpleRouter()
@@ -86,6 +87,9 @@ urlpatterns = [
     path('meeting/recording/resume/', ResumeRecordingView.as_view()),
     path('meeting/recording/stop/', StopRecordingView.as_view()),
     path('meeting/recording/mark/', AddRecordingMarkView.as_view()),
+    path('meeting/recording/save/', SaveRecordingFileView.as_view()),
+    path('meeting/recording/file/<int:meeting_id>/', GetRecordingFilePathView.as_view()),
+    path('meeting/recording/download/', DownloadRecordingFileView.as_view()),
     path('clause/privacy.html', PrivacyView.as_view()),
     path('clause/terms_service.html', TermsServiceView.as_view()),
 ]

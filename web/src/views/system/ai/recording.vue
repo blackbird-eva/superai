@@ -434,7 +434,8 @@ import {
   VideoCamera, SwitchButton, TrendCharts, Files
 } from '@element-plus/icons-vue'
 import {
-  StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark
+  StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
+  SaveRecordingFile
 } from './apimeeting'
 
 // 搜索关键词
@@ -566,6 +567,14 @@ const analyser = ref<any>(null)
 const microphone = ref<any>(null)
 const dataArray = ref<any>(null)
 
+// MediaRecorder 相关
+const mediaRecorder = ref<any>(null)
+const audioChunks = ref<Blob[]>([])
+const audioBlob = ref<Blob | null>(null)
+const audioUrl = ref<string>('')
+const audioStream = ref<MediaStream | null>(null)
+const stopRecordingPromise = ref<Promise<Blob> | null>(null)
+
 // 选择会议
 const selectMeeting = (meeting: any) => {
   if (isRecording.value && selectedMeeting.value?.id !== meeting.id) {
@@ -663,18 +672,43 @@ const startRecording = async () => {
     ElMessage.error(error.msg || '调用录音接口失败')
     return
   }
-  
+
   try {
     // 初始化音频上下文
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioStream.value = await navigator.mediaDevices.getUserMedia({ audio: true })
     audioContext.value = new (window.AudioContext || (window as any).webkitAudioContext)()
     analyser.value = audioContext.value.createAnalyser()
-    microphone.value = audioContext.value.createMediaStreamSource(stream)
+    microphone.value = audioContext.value.createMediaStreamSource(audioStream.value)
     
     analyser.value.fftSize = 256
     microphone.value.connect(analyser.value)
     
     dataArray.value = new Uint8Array(analyser.value.frequencyBinCount)
+    
+    // 初始化 MediaRecorder
+    audioChunks.value = []
+    mediaRecorder.value = new MediaRecorder(audioStream.value)
+    
+    // 创建停止录音的 Promise
+    stopRecordingPromise.value = new Promise((resolve) => {
+      mediaRecorder.value.onstop = () => {
+        // 合并音频数据为 Blob
+        const blob = new Blob(audioChunks.value, { type: 'audio/wav' })
+        audioBlob.value = blob
+        audioUrl.value = URL.createObjectURL(blob)
+        resolve(blob)
+      }
+    })
+    
+    // 处理录音数据
+    mediaRecorder.value.ondataavailable = (event: any) => {
+      if (event.data.size > 0) {
+        audioChunks.value.push(event.data)
+      }
+    }
+    
+    // 开始录音
+    mediaRecorder.value.start()
     
     // 开始绘制波形
     drawWaveform()
@@ -720,6 +754,11 @@ const pauseRecording = async () => {
     return
   }
 
+  // 暂停 MediaRecorder
+  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
+    mediaRecorder.value.pause()
+  }
+  
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
   }
@@ -754,6 +793,11 @@ const resumeRecording = async () => {
     return
   }
 
+  // 继续 MediaRecorder
+  if (mediaRecorder.value && mediaRecorder.value.state === 'paused') {
+    mediaRecorder.value.resume()
+  }
+  
   if (selectedMeeting.value) {
     selectedMeeting.value.isRecording = true
     selectedMeeting.value.isPaused = false
@@ -787,6 +831,13 @@ const stopRecording = async () => {
     return
   }
 
+  // 停止 MediaRecorder 并等待生成 Blob
+  let blob: Blob | null = null
+  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive' && stopRecordingPromise.value) {
+    mediaRecorder.value.stop()
+    blob = await stopRecordingPromise.value
+  }
+  
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
   }
@@ -797,11 +848,17 @@ const stopRecording = async () => {
     audioContext.value.close()
   }
   
+  if (audioStream.value) {
+    audioStream.value.getTracks().forEach((track: any) => track.stop())
+  }
+  
   if (selectedMeeting.value) {
     // 保存录音记录
     const recordingEntry = {
       time: formatTime(recordingStartTime.value / 1000),
-      duration: formatRecordingTime(totalRecordingTime.value)
+      duration: formatRecordingTime(totalRecordingTime.value),
+      audioBlob: blob || audioBlob.value,
+      audioUrl: audioUrl.value
     }
     
     if (!selectedMeeting.value.recordings) {
@@ -815,6 +872,30 @@ const stopRecording = async () => {
     selectedMeeting.value.marks = marks.value
     selectedMeeting.value.transcription = realtimeTranscription.value
     selectedMeeting.value.totalRecordingTime = totalRecordingTime.value
+
+    // 调用保存录音文件接口
+    if (blob) {
+      try {
+        // 将 Blob 转换为 Base64
+        const reader = new FileReader()
+        reader.readAsDataURL(blob)
+        reader.onloadend = async () => {
+          const base64data = reader.result as string
+          try {
+            await SaveRecordingFile({
+              meeting_id: selectedMeeting.value.id,
+              title: selectedMeeting.value.title,
+              recording_time: recordingTime.value,
+              file_data: base64data
+            })
+          } catch (error: any) {
+            console.error('保存录音文件失败:', error)
+          }
+        }
+      } catch (error: any) {
+        console.error('保存录音文件失败:', error)
+      }
+    }
   }
   
   isRecording.value = false
@@ -981,12 +1062,56 @@ const saveNotes = () => {
 
 // 播放录音
 const playRecording = (rec: any) => {
-  ElMessage.info(`播放录音: ${rec.time}`)
+  if (!selectedMeeting.value) {
+    ElMessage.warning('请选择会议')
+    return
+  }
+
+  if (rec.audioUrl) {
+    const audio = new Audio(rec.audioUrl)
+    audio.play()
+    ElMessage.success(`正在播放录音: ${rec.time}`)
+  } else if (rec.audioBlob) {
+    const url = URL.createObjectURL(rec.audioBlob)
+    const audio = new Audio(url)
+    audio.play()
+    audio.onended = () => {
+      URL.revokeObjectURL(url)
+    }
+    ElMessage.success(`正在播放录音: ${rec.time}`)
+  } else {
+    ElMessage.warning('该录音是历史数据，请重新录音以获取文件')
+  }
 }
 
 // 下载录音
 const downloadRecording = (rec: any) => {
-  ElMessage.info(`下载录音: ${rec.time}`)
+  if (!selectedMeeting.value) {
+    ElMessage.warning('请选择会议')
+    return
+  }
+
+  if (rec.audioBlob) {
+    const url = URL.createObjectURL(rec.audioBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `meeting_${selectedMeeting.value.id}_${rec.time.replace(':', '-')}.wav`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success(`下载录音: ${rec.time}`)
+  } else if (rec.audioUrl) {
+    const a = document.createElement('a')
+    a.href = rec.audioUrl
+    a.download = `meeting_${selectedMeeting.value.id}_${rec.time.replace(':', '-')}.wav`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    ElMessage.success(`下载录音: ${rec.time}`)
+  } else {
+    ElMessage.warning('该录音是历史数据，请重新录音以获取文件')
+  }
 }
 
 // 导出记录
