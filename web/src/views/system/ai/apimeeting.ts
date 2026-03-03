@@ -88,3 +88,28 @@ export function DownloadRecordingFile(file_path: string) {
     });
 }
 
+/**
+ * 语音转文本（调用 SiliconFlow API）
+ */
+export async function TranscribeAudio(audioBlob: Blob, apiKey: string = '') {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.wav');
+    formData.append('model', 'TeleAI/TeleSpeechASR');
+
+    const response = await fetch('https://api.siliconflow.cn/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `API request failed with status ${response.status}`);
+    }
+
+    return response.json();
+}
+
+

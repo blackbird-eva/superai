@@ -423,6 +423,33 @@
         <el-button type="primary" @click="handleCreateMeeting">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 设置对话框 -->
+    <el-dialog
+      v-model="settingsDialogVisible"
+      title="设置"
+      width="500px"
+    >
+      <el-form :model="settingsForm" label-width="100px">
+        <el-form-item label="API Key">
+          <el-input
+            v-model="settingsForm.apiKey"
+            type="password"
+            placeholder="请输入 SiliconFlow API Key"
+            show-password
+            clearable
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            用于语音转文本功能的 SiliconFlow API Key
+          </div>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="settingsDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveSettings">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -435,7 +462,7 @@ import {
 } from '@element-plus/icons-vue'
 import {
   StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
-  SaveRecordingFile, DownloadRecordingFile
+  SaveRecordingFile, DownloadRecordingFile, TranscribeAudio
 } from './apimeeting'
 
 // 搜索关键词
@@ -559,6 +586,12 @@ const newMeetingForm = ref({
   type: 'project'
 })
 
+// API Key 设置对话框
+const settingsDialogVisible = ref(false)
+const settingsForm = ref({
+  apiKey: ''
+})
+
 // 波形画布
 const waveformCanvas = ref<HTMLCanvasElement | null>(null)
 const animationFrame = ref<any>(null)
@@ -574,6 +607,9 @@ const audioBlob = ref<Blob | null>(null)
 const audioUrl = ref<string>('')
 const audioStream = ref<MediaStream | null>(null)
 const stopRecordingPromise = ref<Promise<Blob> | null>(null)
+
+// SiliconFlow API Key
+const siliconflowApiKey = ref('')
 
 // 选择会议
 const selectMeeting = (meeting: any) => {
@@ -902,6 +938,36 @@ const stopRecording = async () => {
             }
             
             ElMessage.success(`录音已保存，文件大小: ${response.data?.file_size || '未知'}`)
+
+            // 上传成功后，调用语音转文本 API
+            if (siliconflowApiKey.value) {
+              try {
+                ElMessage.info('正在转换为文本，请稍候...')
+                const transcribeResult = await TranscribeAudio(blob, siliconflowApiKey.value)
+                
+                if (transcribeResult && transcribeResult.text) {
+                  // 将转录结果添加到实时转录列表
+                  const currentTime = totalRecordingTime.value
+                  realtimeTranscription.value.push({
+                    time: currentTime,
+                    speaker: '语音识别',
+                    text: transcribeResult.text
+                  })
+                  
+                  // 保存转录结果到会议记录
+                  if (selectedMeeting.value) {
+                    selectedMeeting.value.transcription = realtimeTranscription.value
+                  }
+                  
+                  ElMessage.success('语音转文本成功！')
+                }
+              } catch (error: any) {
+                console.error('语音转文本失败:', error)
+                ElMessage.error(`语音转文本失败: ${error.message || '未知错误'}`)
+              }
+            } else {
+              ElMessage.warning('未设置 SiliconFlow API Key，跳过语音转文本')
+            }
           } catch (error: any) {
             console.error('保存录音文件失败:', error)
             ElMessage.error(error.msg || '上传录音文件失败，但文件已保存在本地')
@@ -1207,7 +1273,16 @@ const exportRecord = () => {
 
 // 打开设置
 const openSettings = () => {
-  ElMessage.info('设置功能开发中...')
+  settingsForm.value.apiKey = siliconflowApiKey.value
+  settingsDialogVisible.value = true
+}
+
+// 保存设置
+const saveSettings = () => {
+  siliconflowApiKey.value = settingsForm.value.apiKey
+  localStorage.setItem('siliconflow_api_key', siliconflowApiKey.value)
+  settingsDialogVisible.value = false
+  ElMessage.success('API Key 已保存')
 }
 
 // 获取会议状态类型
@@ -1257,6 +1332,12 @@ onMounted(() => {
   if (waveformCanvas.value) {
     waveformCanvas.value.width = waveformCanvas.value.offsetWidth
     waveformCanvas.value.height = 150
+  }
+
+  // 从 localStorage 读取 API Key
+  const savedApiKey = localStorage.getItem('siliconflow_api_key')
+  if (savedApiKey) {
+    siliconflowApiKey.value = savedApiKey
   }
 })
 
