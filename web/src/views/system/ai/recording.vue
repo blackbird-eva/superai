@@ -199,13 +199,48 @@
         </div>
 
         <!-- 实时转录 -->
-        <div v-if="selectedMeeting && (isRecording || isPaused)" class="transcription-section">
+        <div class="transcription-section">
           <div class="section-header">
             <h3>实时转录</h3>
-            <el-tag type="success">AI实时</el-tag>
+            <el-tag v-if="transcriptionStatus === 'idle'" type="info">等待录音</el-tag>
+            <el-tag v-else-if="transcriptionStatus === 'transcribing'" type="warning">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              转录中
+            </el-tag>
+            <el-tag v-else-if="transcriptionStatus === 'completed'" type="success">
+              <el-icon><Select /></el-icon>
+              已完成
+            </el-tag>
+            <el-tag v-else-if="transcriptionStatus === 'failed'" type="danger">
+              <el-icon><CircleClose /></el-icon>
+              转录失败
+            </el-tag>
           </div>
-          
+
+          <!-- 状态提示 -->
+          <div v-if="transcriptionStatus === 'idle'" class="transcription-status idle">
+            <el-icon><Microphone /></el-icon>
+            <span>开始录音后，语音内容将实时转换为文本</span>
+          </div>
+
+          <div v-else-if="transcriptionStatus === 'transcribing'" class="transcription-status transcribing">
+            <div class="loading-animation">
+              <div class="pulse-dot"></div>
+              <div class="pulse-dot"></div>
+              <div class="pulse-dot"></div>
+            </div>
+            <span>正在将语音转换为文本...</span>
+          </div>
+
+          <div v-else-if="transcriptionStatus === 'failed'" class="transcription-status failed">
+            <el-icon><CircleClose /></el-icon>
+            <span>转录失败: {{ transcriptionError || '未知错误' }}</span>
+          </div>
+
+          <!-- 转录内容 -->
           <div class="realtime-transcription">
+            <el-empty v-if="realtimeTranscription.length === 0 && transcriptionStatus === 'idle'" description="暂无转录内容" />
+
             <div
               v-for="(segment, index) in realtimeTranscription"
               :key="index"
@@ -214,6 +249,11 @@
               <span class="segment-time">{{ formatTime(segment.time) }}</span>
               <span class="segment-speaker">{{ segment.speaker }}:</span>
               <span class="segment-text">{{ segment.text }}</span>
+            </div>
+
+            <div v-if="transcriptionStatus === 'completed' && realtimeTranscription.length > 0" class="transcription-complete-tip">
+              <el-icon><Select /></el-icon>
+              <span>转录完成，共 {{ realtimeTranscription.length }} 条记录</span>
             </div>
           </div>
         </div>
@@ -458,7 +498,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Microphone, VideoPlay, VideoPause, Calendar, Clock, Location, User,
-  VideoCamera, SwitchButton, TrendCharts, Files
+  VideoCamera, SwitchButton, TrendCharts, Files, Loading, Select, CircleClose
 } from '@element-plus/icons-vue'
 import {
   StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
@@ -470,24 +510,6 @@ const searchKeyword = ref('')
 
 // 会议列表
 const meetings = ref<any[]>([
-  {
-    id: 1,
-    title: '2024年度项目规划会议',
-    date: '2024-01-25',
-    startTime: '14:00',
-    duration: '0:00:00',
-    location: '会议室A',
-    participants: ['张三', '李四', '王五', '赵六'],
-    type: 'project',
-    status: 'pending',
-    isRecording: false,
-    isPaused: false,
-    recordStartTime: null,
-    totalRecordingTime: 0,
-    marks: [],
-    transcription: [],
-    summary: null
-  },
   {
     id: 2,
     title: '直升机设计方案讨论',
@@ -565,6 +587,10 @@ const marks = ref<any[]>([])
 // 实时转录
 const realtimeTranscription = ref<any[]>([])
 
+// 转录状态
+const transcriptionStatus = ref<'idle' | 'transcribing' | 'completed' | 'failed'>('idle')
+const transcriptionError = ref('')
+
 // 会议笔记
 const meetingNotes = ref('')
 
@@ -613,34 +639,53 @@ const siliconflowApiKey = ref('')
 
 // 选择会议
 const selectMeeting = (meeting: any) => {
+  console.log('selectMeeting 被调用:', meeting)
+
+  // 检查是否正在录音其他会议
   if (isRecording.value && selectedMeeting.value?.id !== meeting.id) {
+    console.log('阻止选择：当前有会议正在录音')
     ElMessage.warning('当前有会议正在录音，请先结束录音')
     return
   }
-  
+
+  console.log('选择会议:', meeting.id, meeting.title)
   selectedMeeting.value = meeting
-  
+
   // 恢复录音状态
   if (meeting.isRecording && !meeting.isPaused) {
+    console.log('恢复录音状态：录音中')
     isRecording.value = true
     isPaused.value = false
     recordingStartTime.value = Date.now() - meeting.totalRecordingTime * 1000
     startRecordingTimer()
   } else if (meeting.isPaused) {
+    console.log('恢复录音状态：已暂停')
     isRecording.value = false
     isPaused.value = true
     recordingStartTime.value = meeting.recordStartTime
     totalRecordingTime.value = meeting.totalRecordingTime
   } else {
+    console.log('恢复录音状态：未录音')
     isRecording.value = false
     isPaused.value = false
     recordingStartTime.value = 0
     totalRecordingTime.value = meeting.totalRecordingTime
   }
-  
+
   // 加载标记和转录
   marks.value = meeting.marks || []
   realtimeTranscription.value = meeting.transcription || []
+
+  // 根据转录内容设置状态
+  if (realtimeTranscription.value.length > 0) {
+    transcriptionStatus.value = 'completed'
+    transcriptionError.value = ''
+  } else {
+    transcriptionStatus.value = 'idle'
+    transcriptionError.value = ''
+  }
+
+  console.log('会议选择完成')
 }
 
 // 新建会议
@@ -760,12 +805,16 @@ const startRecording = async () => {
     isPaused.value = false
     recordingStartTime.value = Date.now()
     totalRecordingTime.value = 0
-    
+
+    // 重置转录状态
+    transcriptionStatus.value = 'idle'
+    transcriptionError.value = ''
+
     startRecordingTimer()
-    
+
     // 开始实时转录模拟
     simulateRealtimeTranscription()
-    
+
     ElMessage.success('录音已开始')
   } catch (error) {
     ElMessage.error('无法访问麦克风，请检查权限设置')
@@ -942,27 +991,72 @@ const stopRecording = async () => {
             // 上传成功后，调用语音转文本 API
             if (siliconflowApiKey.value) {
               try {
+                // 设置转录状态为"转录中"
+                transcriptionStatus.value = 'transcribing'
+                transcriptionError.value = ''
+
                 ElMessage.info('正在转换为文本，请稍候...')
                 const transcribeResult = await TranscribeAudio(blob, siliconflowApiKey.value)
-                
-                if (transcribeResult && transcribeResult.text) {
+
+                console.log('语音转文本 API 返回结果:', transcribeResult)
+
+                // 尝试从不同格式中提取文本
+                let recognizedText = ''
+
+                if (typeof transcribeResult === 'string') {
+                  // 如果返回的是纯文本字符串
+                  recognizedText = transcribeResult
+                } else if (typeof transcribeResult === 'object') {
+                  // 尝试多种可能的字段名
+                  recognizedText = transcribeResult.text ||
+                                   transcribeResult.transcription ||
+                                   transcribeResult.result?.text ||
+                                   transcribeResult.result?.transcription ||
+                                   transcribeResult.data?.text ||
+                                   transcribeResult.data?.transcription ||
+                                   transcribeResult.output ||
+                                   ''
+                }
+
+                if (recognizedText && recognizedText.trim()) {
                   // 将转录结果添加到实时转录列表
                   const currentTime = totalRecordingTime.value
                   realtimeTranscription.value.push({
                     time: currentTime,
                     speaker: '语音识别',
-                    text: transcribeResult.text
+                    text: recognizedText.trim()
                   })
-                  
+
                   // 保存转录结果到会议记录
                   if (selectedMeeting.value) {
                     selectedMeeting.value.transcription = realtimeTranscription.value
                   }
-                  
+
+                  // 设置转录状态为"完成"
+                  transcriptionStatus.value = 'completed'
                   ElMessage.success('语音转文本成功！')
+                } else {
+                  // 未找到识别文本，输出详细错误信息
+                  console.error('未找到识别文本，返回结果:', transcribeResult)
+                  transcriptionStatus.value = 'failed'
+                  transcriptionError.value = '未返回识别结果'
+
+                  // 尝试提供更详细的错误信息
+                  let errorMsg = '语音转文本未返回结果'
+                  if (typeof transcribeResult === 'object') {
+                    const keys = Object.keys(transcribeResult)
+                    if (keys.length > 0) {
+                      errorMsg += ` (返回字段: ${keys.join(', ')})`
+                    }
+                  }
+                  ElMessage.warning(errorMsg)
                 }
               } catch (error: any) {
                 console.error('语音转文本失败:', error)
+                console.error('错误详情:', error.message, error.stack)
+                // 设置转录状态为"失败"
+                transcriptionStatus.value = 'failed'
+                transcriptionError.value = error.message || '未知错误'
                 ElMessage.error(`语音转文本失败: ${error.message || '未知错误'}`)
               }
             } else {
@@ -1457,11 +1551,18 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s;
   background: #f9fafb;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .meeting-item:hover {
   background: #e5e7eb;
   transform: translateX(4px);
+}
+
+.meeting-item:active {
+  transform: translateX(2px);
+  background: #d9d9d9;
 }
 
 .meeting-item.active {
@@ -1710,6 +1811,86 @@ onUnmounted(() => {
   padding: 8px;
   border-radius: 4px;
   font-size: 14px;
+}
+
+/* 转录状态提示 */
+.transcription-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.transcription-status.idle {
+  color: #909399;
+  background: #f5f7fa;
+  border: 2px dashed #e4e7ed;
+}
+
+.transcription-status.transcribing {
+  color: #e6a23c;
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+}
+
+.transcription-status.failed {
+  color: #f56c6c;
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+}
+
+/* 转录中动画 */
+.loading-animation {
+  display: flex;
+  gap: 6px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e6a23c;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.pulse-dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.pulse-dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* 转录完成提示 */
+.transcription-complete-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  background: #f0f9ff;
+  border: 1px solid #d1fae5;
+  border-radius: 6px;
+  color: #67c23a;
+  font-size: 13px;
 }
 
 /* 右侧面板 */
