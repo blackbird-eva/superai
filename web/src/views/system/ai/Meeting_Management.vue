@@ -912,8 +912,9 @@ const formatTime = (time: any) => {
 /* 主内容区 */
 .main-content {
   display: grid;
-  grid-template-columns: 260px 1fr 320px;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
   gap: 20px;
+  overflow: hidden;
 }
 
 /* 左右面板 */
@@ -922,7 +923,9 @@ const formatTime = (time: any) => {
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  height: fit-content;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 中间面板 */
@@ -930,6 +933,9 @@ const formatTime = (time: any) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 面板头部 */
