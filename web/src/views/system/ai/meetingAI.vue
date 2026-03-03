@@ -641,16 +641,298 @@
         <el-button type="primary" @click="saveSettings">保存设置</el-button>
       </template>
     </el-dialog>
+
+    <!-- 悬浮AI助手 -->
+    <div class="floating-ai-assistant">
+      <!-- 悬浮球 -->
+      <div
+        v-if="!assistantExpanded"
+        class="floating-ball"
+        @click="toggleAssistant"
+        @mousedown="startDragBall"
+      >
+        <div class="ball-icon">
+          <el-icon><ChatDotSquare /></el-icon>
+        </div>
+        <div class="ball-ripple"></div>
+        <div class="ball-ripple delay-1"></div>
+        <div class="ball-ripple delay-2"></div>
+      </div>
+
+      <!-- 对话窗口 -->
+      <div
+        v-show="assistantExpanded"
+        class="assistant-window"
+        :style="{ left: windowPos.x + 'px', top: windowPos.y + 'px' }"
+      >
+        <!-- 标题栏 -->
+        <div class="window-header" @mousedown="startDragWindow">
+          <div class="header-title">
+            <el-icon class="ai-icon"><Cpu /></el-icon>
+            <span>AI 智能助手</span>
+            <el-tag v-if="currentMode !== 'chat'" size="small" type="success" style="margin-left: 8px">
+              {{ getModeLabel(currentMode) }}
+            </el-tag>
+          </div>
+          <div class="header-actions">
+            <el-button
+              text
+              circle
+              size="small"
+              icon="Minus"
+              @click="minimizeAssistant"
+              title="最小化"
+            />
+            <el-button
+              text
+              circle
+              size="small"
+              icon="Close"
+              @click="closeAssistant"
+              title="关闭"
+            />
+          </div>
+        </div>
+
+        <!-- 功能菜单 -->
+        <div class="function-menu">
+          <div
+            v-for="mode in assistantModes"
+            :key="mode.id"
+            :class="['menu-item', { active: currentMode === mode.id }]"
+            @click="switchMode(mode.id)"
+          >
+            <el-icon><component :is="mode.icon" /></el-icon>
+            <span>{{ mode.name }}</span>
+          </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="assistant-content">
+          <!-- 普通聊天 -->
+          <div v-if="currentMode === 'chat'" class="chat-area">
+            <div class="messages-container" ref="messagesContainer">
+              <div
+                v-for="(msg, index) in assistantMessages"
+                :key="index"
+                :class="['message', msg.role]"
+              >
+                <div class="message-avatar">
+                  <el-icon v-if="msg.role === 'user'"><User /></el-icon>
+                  <el-icon v-else><Cpu /></el-icon>
+                </div>
+                <div class="message-body">
+                  <div class="message-content">{{ msg.content }}</div>
+                </div>
+              </div>
+              <div v-if="isTyping" class="message ai">
+                <div class="message-avatar">
+                  <el-icon><Cpu /></el-icon>
+                </div>
+                <div class="message-body">
+                  <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 网页翻译 -->
+          <div v-else-if="currentMode === 'translate'" class="tool-area">
+            <div class="translate-header">
+              <el-select v-model="translateFrom" size="small" style="width: 120px">
+                <el-option label="中文" value="zh" />
+                <el-option label="English" value="en" />
+                <el-option label="日本語" value="ja" />
+                <el-option label="한국어" value="ko" />
+              </el-select>
+              <el-icon class="translate-arrow"><Right /></el-icon>
+              <el-select v-model="translateTo" size="small" style="width: 120px">
+                <el-option label="English" value="en" />
+                <el-option label="中文" value="zh" />
+                <el-option label="日本語" value="ja" />
+                <el-option label="한국어" value="ko" />
+              </el-select>
+            </div>
+            <el-input
+              v-model="translateInput"
+              type="textarea"
+              :rows="4"
+              placeholder="输入需要翻译的文本..."
+              class="translate-input"
+            />
+            <el-button
+              type="primary"
+              :loading="translating"
+              @click="handleTranslate"
+              style="width: 100%; margin-top: 12px"
+            >
+              翻译
+            </el-button>
+            <div v-if="translateResult" class="translate-result">
+              <div class="result-label">翻译结果：</div>
+              <div class="result-text">{{ translateResult }}</div>
+              <el-button size="small" text icon="CopyDocument" @click="copyText(translateResult)">
+                复制
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 内容总结 -->
+          <div v-else-if="currentMode === 'summary'" class="tool-area">
+            <el-input
+              v-model="summaryInput"
+              type="textarea"
+              :rows="6"
+              placeholder="粘贴需要总结的内容..."
+              class="summary-input"
+            />
+            <div class="summary-options">
+              <el-radio-group v-model="summaryLength" size="small">
+                <el-radio-button label="brief">简短</el-radio-button>
+                <el-radio-button label="normal">标准</el-radio-button>
+                <el-radio-button label="detailed">详细</el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-button
+              type="primary"
+              :loading="summarizing"
+              @click="handleSummary"
+              style="width: 100%; margin-top: 12px"
+            >
+              生成摘要
+            </el-button>
+            <div v-if="summaryOutput" class="summary-result">
+              <div class="result-label">摘要：</div>
+              <div class="result-text">{{ summaryOutput }}</div>
+              <el-button size="small" text icon="CopyDocument" @click="copyText(summaryOutput)">
+                复制
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 会议实时转录 -->
+          <div v-else-if="currentMode === 'transcribe'" class="tool-area">
+            <div class="transcribe-status">
+              <div v-if="!isTranscribing" class="status-idle">
+                <el-icon class="mic-icon"><Microphone /></el-icon>
+                <p>点击开始实时转录</p>
+              </div>
+              <div v-else class="status-active">
+                <div class="recording-indicator">
+                  <div class="recording-dot"></div>
+                  <span>正在录音...</span>
+                </div>
+                <div class="transcribe-time">{{ transcribeTime }}</div>
+              </div>
+            </div>
+            <el-button
+              v-if="!isTranscribing"
+              type="primary"
+              icon="Microphone"
+              @click="startTranscribe"
+              style="width: 100%"
+            >
+              开始转录
+            </el-button>
+            <el-button
+              v-else
+              type="danger"
+              icon="VideoPause"
+              @click="stopTranscribe"
+              style="width: 100%"
+            >
+              停止转录
+            </el-button>
+            <div v-if="transcribeResult" class="transcribe-result">
+              <div class="result-label">转录结果：</div>
+              <div class="result-text">{{ transcribeResult }}</div>
+              <el-button size="small" text icon="CopyDocument" @click="copyText(transcribeResult)">
+                复制
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 写作润色 -->
+          <div v-else-if="currentMode === 'polish'" class="tool-area">
+            <el-input
+              v-model="polishInput"
+              type="textarea"
+              :rows="6"
+              placeholder="输入需要润色的文本..."
+              class="polish-input"
+            />
+            <div class="polish-options">
+              <el-select v-model="polishStyle" placeholder="选择风格" size="small">
+                <el-option label="正式商务" value="formal" />
+                <el-option label="轻松活泼" value="casual" />
+                <el-option label="学术严谨" value="academic" />
+                <el-option label="简洁明了" value="concise" />
+              </el-select>
+            </div>
+            <el-button
+              type="primary"
+              :loading="polishing"
+              @click="handlePolish"
+              style="width: 100%; margin-top: 12px"
+            >
+              润色文本
+            </el-button>
+            <div v-if="polishResult" class="polish-result">
+              <div class="result-label">润色结果：</div>
+              <div class="result-text">{{ polishResult }}</div>
+              <el-button size="small" text icon="CopyDocument" @click="copyText(polishResult)">
+                复制
+              </el-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="assistant-input">
+          <el-input
+            v-model="userInput"
+            type="textarea"
+            :rows="2"
+            placeholder="输入消息... (Ctrl+Enter 发送)"
+            @keydown.ctrl.enter="handleSend"
+            resize="none"
+          />
+          <div class="input-actions">
+            <el-button
+              circle
+              size="small"
+              :type="isRecording ? 'danger' : 'default'"
+              icon="Microphone"
+              @click="toggleVoiceInput"
+              title="语音输入"
+            />
+            <el-button
+              type="primary"
+              circle
+              size="small"
+              icon="Position"
+              @click="handleSend"
+              :loading="sendingMessage"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   SuccessFilled, DataLine, Clock, UploadFilled, MagicStick, TrendCharts,
   User, Cpu, Position, Refresh, Key, List, DataAnalysis, ChatDotRound,
-  Document, ChatDotSquare, Microphone, Star, Notification, WarningFilled
+  Document, ChatDotSquare, Microphone, Star, Notification, WarningFilled,
+  Right
 } from '@element-plus/icons-vue'
 
 // AI功能列表
@@ -986,6 +1268,321 @@ const formatTime = (seconds: number) => {
   const secs = Math.floor(seconds % 60)
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
+
+// ========== 悬浮AI助手相关 ==========
+// 悬浮球状态
+const assistantExpanded = ref(false)
+const currentMode = ref('chat')
+const userInput = ref('')
+const isRecording = ref(false)
+const isTyping = ref(false)
+const sendingMessage = ref(false)
+
+// 窗口位置
+const windowPos = reactive({
+  x: window.innerWidth - 440,
+  y: window.innerHeight - 620
+})
+
+// 拖动状态
+const dragging = ref(false)
+const dragOffset = reactive({ x: 0, y: 0 })
+
+// 聊天消息
+const assistantMessages = ref([
+  { role: 'ai', content: '您好！我是您的 AI 智能助手。我可以帮您翻译文本、总结内容、实时转录会议、润色写作等。有什么可以帮您的吗？' }
+])
+
+const messagesContainer = ref<HTMLElement | null>(null)
+
+// 功能模式
+const assistantModes = [
+  { id: 'chat', name: '智能对话', icon: 'ChatDotSquare' },
+  { id: 'translate', name: '网页翻译', icon: 'Position' },
+  { id: 'summary', name: '内容总结', icon: 'Document' },
+  { id: 'transcribe', name: '实时转录', icon: 'Microphone' },
+  { id: 'polish', name: '写作润色', icon: 'MagicStick' }
+]
+
+// 翻译功能
+const translateFrom = ref('zh')
+const translateTo = ref('en')
+const translateInput = ref('')
+const translateResult = ref('')
+const translating = ref(false)
+
+// 总结功能
+const summaryInput = ref('')
+const summaryLength = ref('normal')
+const summaryOutput = ref('')
+const summarizing = ref(false)
+
+// 转录功能
+const isTranscribing = ref(false)
+const transcribeResult = ref('')
+const transcribeTime = ref('00:00')
+const transcribeTimer = ref<any>(null)
+const transcribeSeconds = ref(0)
+
+// 润色功能
+const polishInput = ref('')
+const polishStyle = ref('formal')
+const polishResult = ref('')
+const polishing = ref(false)
+
+// 切换助手显示
+const toggleAssistant = () => {
+  assistantExpanded.value = !assistantExpanded.value
+}
+
+// 最小化助手
+const minimizeAssistant = () => {
+  assistantExpanded.value = false
+}
+
+// 关闭助手
+const closeAssistant = () => {
+  assistantExpanded.value = false
+  assistantMessages.value = [
+    { role: 'ai', content: '您好！我是您的 AI 智能助手。我可以帮您翻译文本、总结内容、实时转录会议、润色写作等。有什么可以帮您的吗？' }
+  ]
+}
+
+// 切换功能模式
+const switchMode = (mode: string) => {
+  currentMode.value = mode
+}
+
+// 获取模式标签
+const getModeLabel = (mode: string) => {
+  const modeLabels: Record<string, string> = {
+    translate: '翻译',
+    summary: '总结',
+    transcribe: '转录',
+    polish: '润色'
+  }
+  return modeLabels[mode] || ''
+}
+
+// 开始拖动悬浮球
+const startDragBall = (e: MouseEvent) => {
+  // 悬浮球可以拖动，但这里简单实现点击展开
+  e.preventDefault()
+}
+
+// 开始拖动窗口
+const startDragWindow = (e: MouseEvent) => {
+  if ((e.target as HTMLElement).closest('.header-actions')) {
+    return
+  }
+  dragging.value = true
+  dragOffset.x = e.clientX - windowPos.x
+  dragOffset.y = e.clientY - windowPos.y
+  
+  document.addEventListener('mousemove', handleDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+// 处理拖动
+const handleDrag = (e: MouseEvent) => {
+  if (!dragging.value) return
+  
+  const newX = e.clientX - dragOffset.x
+  const newY = e.clientY - dragOffset.y
+  
+  // 限制窗口在屏幕范围内
+  windowPos.x = Math.max(0, Math.min(newX, window.innerWidth - 400))
+  windowPos.y = Math.max(0, Math.min(newY, window.innerHeight - 600))
+}
+
+// 停止拖动
+const stopDrag = () => {
+  dragging.value = false
+  document.removeEventListener('mousemove', handleDrag)
+  document.removeEventListener('mouseup', stopDrag)
+}
+
+// 发送消息
+const handleSend = async () => {
+  if (!userInput.value.trim()) return
+  
+  const message = userInput.value.trim()
+  assistantMessages.value.push({ role: 'user', content: message })
+  userInput.value = ''
+  
+  // 滚动到底部
+  await nextTick()
+  scrollToBottom()
+  
+  // 模拟AI回复
+  isTyping.value = true
+  sendingMessage.value = true
+  
+  setTimeout(() => {
+    const responses = [
+      '好的，我已经理解您的需求。让我帮您处理一下。',
+      '根据您的描述，我建议您可以这样做...',
+      '这是一个很好的问题，我来为您解答。',
+      '我已经为您准备好了相关的解决方案。',
+      '让我帮您分析一下这个问题的要点。'
+    ]
+    
+    const response = responses[Math.floor(Math.random() * responses.length)]
+    assistantMessages.value.push({ role: 'ai', content: response })
+    isTyping.value = false
+    sendingMessage.value = false
+    
+    nextTick(() => scrollToBottom())
+  }, 1500)
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// 切换语音输入
+const toggleVoiceInput = () => {
+  isRecording.value = !isRecording.value
+  
+  if (isRecording.value) {
+    ElMessage.info('语音输入已开启，请说话...')
+    // 这里可以集成实际的语音识别API
+    setTimeout(() => {
+      if (isRecording.value) {
+        userInput.value = '这是语音识别的测试内容'
+        isRecording.value = false
+        ElMessage.success('语音识别完成')
+      }
+    }, 3000)
+  } else {
+    ElMessage.info('语音输入已关闭')
+  }
+}
+
+// 翻译功能
+const handleTranslate = () => {
+  if (!translateInput.value.trim()) {
+    ElMessage.warning('请输入需要翻译的文本')
+    return
+  }
+  
+  translating.value = true
+  
+  setTimeout(() => {
+    // 模拟翻译结果
+    const translations: Record<string, string> = {
+      'en': 'This is the translation result.',
+      'zh': '这是翻译结果。',
+      'ja': 'これは翻訳結果です。',
+      'ko': '이것은 번역 결과입니다.'
+    }
+    
+    translateResult.value = translations[translateTo.value] || '翻译结果'
+    translating.value = false
+    ElMessage.success('翻译完成')
+  }, 1500)
+}
+
+// 总结功能
+const handleSummary = () => {
+  if (!summaryInput.value.trim()) {
+    ElMessage.warning('请输入需要总结的内容')
+    return
+  }
+  
+  summarizing.value = true
+  
+  setTimeout(() => {
+    const lengthTexts: Record<string, string> = {
+      brief: '本文主要讨论了相关主题的核心内容，提出了几个关键观点和解决方案。',
+      normal: '本文详细阐述了主题的背景和现状，分析了存在的问题，并提出了相应的解决方案。主要内容包括：问题分析、方案设计、实施步骤和预期效果。通过系统性的方法，可以有效解决当前面临的挑战。',
+      detailed: '本文全面深入地探讨了相关主题，首先介绍了背景和现状，分析了存在的问题和挑战。然后，详细阐述了解决方案的设计思路、实施步骤和关键技术点。最后，总结了实施效果和未来展望。本文内容丰富、逻辑清晰，对于理解和解决相关问题具有重要参考价值。'
+    }
+    
+    summaryOutput.value = lengthTexts[summaryLength.value]
+    summarizing.value = false
+    ElMessage.success('摘要生成完成')
+  }, 2000)
+}
+
+// 开始转录
+const startTranscribe = () => {
+  isTranscribing.value = true
+  transcribeSeconds.value = 0
+  transcribeResult.value = ''
+  
+  transcribeTimer.value = setInterval(() => {
+    transcribeSeconds.value++
+    transcribeTime.value = formatTime(transcribeSeconds.value)
+    
+    // 模拟实时转录内容
+    if (transcribeSeconds.value % 5 === 0) {
+      const texts = [
+        '大家好，今天我们来讨论一下项目进展。',
+        '目前项目进展顺利，主要功能已经完成。',
+        '接下来我们需要关注性能优化问题。',
+        '希望大家能够按时完成各自的任务。'
+      ]
+      transcribeResult.value += texts[Math.floor(transcribeSeconds.value / 5) % texts.length] + '\n'
+    }
+  }, 1000)
+  
+  ElMessage.success('开始实时转录')
+}
+
+// 停止转录
+const stopTranscribe = () => {
+  isTranscribing.value = false
+  if (transcribeTimer.value) {
+    clearInterval(transcribeTimer.value)
+    transcribeTimer.value = null
+  }
+  ElMessage.success('转录已停止')
+}
+
+// 润色功能
+const handlePolish = () => {
+  if (!polishInput.value.trim()) {
+    ElMessage.warning('请输入需要润色的文本')
+    return
+  }
+  
+  polishing.value = true
+  
+  setTimeout(() => {
+    const styleTexts: Record<string, string> = {
+      formal: '经审慎评估，我们认为该项目具有重要的战略意义，建议予以批准并积极推进。',
+      casual: '这个项目看起来挺不错的，我觉得可以做，大家一起加油！',
+      academic: '基于系统性的分析框架，本研究对相关议题进行了深入探讨，研究结果表明该方法具有显著的理论价值和实践意义。',
+      concise: '项目可行，建议批准。'
+    }
+    
+    polishResult.value = styleTexts[polishStyle.value]
+    polishing.value = false
+    ElMessage.success('润色完成')
+  }, 1500)
+}
+
+// 复制文本
+const copyText = (text: string) => {
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  })
+}
+
+// 生命周期
+onMounted(() => {
+  // 初始化
+})
+
+onUnmounted(() => {
+  if (transcribeTimer.value) {
+    clearInterval(transcribeTimer.value)
+  }
+})
 </script>
 
 <style scoped>
@@ -1703,5 +2300,444 @@ const formatTime = (seconds: number) => {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* ========== 悬浮AI助手样式 ========== */
+.floating-ai-assistant {
+  position: fixed;
+  z-index: 9999;
+}
+
+/* 悬浮球 */
+.floating-ball {
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 10000;
+}
+
+.floating-ball:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
+}
+
+.floating-ball:active {
+  transform: scale(0.95);
+}
+
+.ball-icon {
+  color: white;
+  font-size: 28px;
+  z-index: 1;
+}
+
+/* 涟漪效果 */
+.ball-ripple {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(102, 126, 234, 0.3);
+  animation: ripple 2s infinite;
+}
+
+.ball-ripple.delay-1 {
+  animation-delay: 0.5s;
+}
+
+.ball-ripple.delay-2 {
+  animation-delay: 1s;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* 助手窗口 */
+.assistant-window {
+  position: fixed;
+  width: 400px;
+  max-height: 600px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10001;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 窗口标题栏 */
+.window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: move;
+  user-select: none;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ai-icon {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.header-actions .el-button {
+  color: white !important;
+}
+
+/* 功能菜单 */
+.function-menu {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.menu-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 12px;
+  color: #606266;
+}
+
+.menu-item:hover {
+  background: white;
+  color: #409eff;
+}
+
+.menu-item.active {
+  background: white;
+  color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+}
+
+.menu-item .el-icon {
+  font-size: 18px;
+}
+
+/* 内容区域 */
+.assistant-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 聊天区域 */
+.chat-area {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.message {
+  display: flex;
+  gap: 12px;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.message.ai .message-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.message.user .message-avatar {
+  background: #e5e7eb;
+  color: #606266;
+}
+
+.message-body {
+  max-width: 70%;
+}
+
+.message-content {
+  padding: 12px 16px;
+  border-radius: 12px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.message.ai .message-content {
+  background: #f3f4f6;
+  color: #303133;
+}
+
+.message.user .message-content {
+  background: #409eff;
+  color: white;
+}
+
+/* 打字指示器 */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  background: #f3f4f6;
+  border-radius: 12px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #909399;
+  animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+/* 工具区域 */
+.tool-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.translate-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.translate-arrow {
+  font-size: 16px;
+  color: #909399;
+}
+
+.translate-input,
+.summary-input,
+.polish-input {
+  margin-top: 8px;
+}
+
+.summary-options,
+.polish-options {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.result-label {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.result-text {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #303133;
+  white-space: pre-wrap;
+}
+
+.translate-result,
+.summary-result,
+.polish-result,
+.transcribe-result {
+  margin-top: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+/* 转录状态 */
+.transcribe-status {
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.status-idle .mic-icon {
+  font-size: 48px;
+  color: #409eff;
+  margin-bottom: 12px;
+}
+
+.status-idle p {
+  font-size: 14px;
+  color: #606266;
+  margin: 0;
+}
+
+.status-active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #303133;
+}
+
+.recording-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f56c6c;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.transcribe-time {
+  font-size: 24px;
+  font-weight: bold;
+  color: #409eff;
+  font-family: monospace;
+}
+
+/* 输入区域 */
+.assistant-input {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+}
+
+.assistant-input .el-textarea {
+  flex: 1;
+}
+
+.input-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .assistant-window {
+    width: calc(100vw - 40px);
+    max-height: calc(100vh - 100px);
+    right: 20px !important;
+    left: 20px !important;
+    bottom: 80px !important;
+    top: auto !important;
+  }
+  
+  .floating-ball {
+    width: 50px;
+    height: 50px;
+    right: 20px;
+    bottom: 20px;
+  }
+  
+  .ball-icon {
+    font-size: 24px;
+  }
 }
 </style>
