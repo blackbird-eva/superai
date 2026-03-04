@@ -246,7 +246,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   TrendCharts, VideoPlay, WindPower, Tools, Search, 
@@ -434,11 +434,21 @@ const getNodeColor = (category: string): string => {
 
 // 初始化 Cytoscape
 const initCytoscape = () => {
-  if (!cytoscapeContainer.value || !selectedGraph.value) return
+  if (!cytoscapeContainer.value) {
+    console.error('Cytoscape 容器未找到')
+    ElMessage.error('图谱容器初始化失败，请重试')
+    return
+  }
+
+  if (!selectedGraph.value) {
+    console.error('未选择图谱')
+    return
+  }
 
   // 销毁旧实例
   if (cy) {
     cy.destroy()
+    cy = null
   }
 
   // 准备节点数据
@@ -462,10 +472,11 @@ const initCytoscape = () => {
     }
   }))
 
-  // 创建 Cytoscape 实例
-  cy = cytoscape({
-    container: cytoscapeContainer.value,
-    elements: [...nodes, ...edges],
+  try {
+    // 创建 Cytoscape 实例
+    cy = cytoscape({
+      container: cytoscapeContainer.value,
+      elements: [...nodes, ...edges],
     
     // 节点样式
     style: [
@@ -560,6 +571,12 @@ const initCytoscape = () => {
 
   // 绑定事件
   bindCytoscapeEvents()
+  
+  console.log('Cytoscape 初始化成功')
+  } catch (error) {
+    console.error('Cytoscape 初始化失败:', error)
+    ElMessage.error('图谱加载失败，请重试')
+  }
 }
 
 // 获取布局选项
@@ -715,10 +732,18 @@ const selectGraph = (graph: any) => {
   selectedGraph.value = graph
   loading.value = true
   
-  setTimeout(() => {
+  // 使用 nextTick 确保 DOM 已经渲染
+  setTimeout(async () => {
     loading.value = false
-    initCytoscape()
-  }, 500)
+    
+    // 等待 Vue 更新 DOM
+    await nextTick()
+    
+    // 再次等待，确保容器已经完全渲染
+    setTimeout(() => {
+      initCytoscape()
+    }, 100)
+  }, 300)
 }
 
 // 缩放控制
