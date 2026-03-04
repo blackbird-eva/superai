@@ -323,26 +323,82 @@
         <div class="summary-section">
           <div class="section-header">
             <h3>会议摘要</h3>
-            <el-button
-              v-if="selectedMeeting && selectedMeeting.status === 'completed'"
-              type="primary"
-              size="small"
-              icon="MagicStick"
-              :loading="generatingSummary"
-              @click="generateSummary"
-            >
-              生成摘要
-            </el-button>
+            <div class="header-actions">
+              <el-button
+                v-if="selectedMeeting && (selectedMeeting.status === 'completed' || realtimeTranscription.length > 0)"
+                type="primary"
+                size="small"
+                icon="MagicStick"
+                :loading="generatingSummary"
+                @click="generateSummary"
+              >
+                生成摘要
+              </el-button>
+              <el-button
+                v-if="selectedMeeting && selectedMeeting.summary"
+                size="small"
+                icon="CopyDocument"
+                @click="copySummary"
+              >
+                复制
+              </el-button>
+            </div>
           </div>
           
           <div v-if="selectedMeeting && selectedMeeting.summary" class="summary-content">
+            <!-- 会议主题 -->
             <div class="summary-item">
-              <div class="item-title">会议主题</div>
+              <div class="item-title">
+                <el-icon><Document /></el-icon>
+                会议主题
+              </div>
               <div class="item-content">{{ selectedMeeting.summary.topic }}</div>
             </div>
             
+            <!-- 参与人员 -->
+            <div v-if="selectedMeeting.summary.participants && selectedMeeting.summary.participants.length > 0" class="summary-item">
+              <div class="item-title">
+                <el-icon><User /></el-icon>
+                参与人员
+              </div>
+              <div class="item-content">
+                <el-tag
+                  v-for="(person, index) in selectedMeeting.summary.participants"
+                  :key="index"
+                  size="small"
+                  style="margin: 4px"
+                >
+                  {{ person }}
+                </el-tag>
+              </div>
+            </div>
+            
+            <!-- 关键词 -->
+            <div v-if="selectedMeeting.summary.keywords && selectedMeeting.summary.keywords.length > 0" class="summary-item">
+              <div class="item-title">
+                <el-icon><TrendCharts /></el-icon>
+                关键词
+              </div>
+              <div class="item-content">
+                <el-tag
+                  v-for="(keyword, index) in selectedMeeting.summary.keywords"
+                  :key="index"
+                  type="warning"
+                  size="small"
+                  effect="plain"
+                  style="margin: 4px"
+                >
+                  {{ keyword }}
+                </el-tag>
+              </div>
+            </div>
+            
+            <!-- 讨论要点 -->
             <div class="summary-item">
-              <div class="item-title">讨论要点</div>
+              <div class="item-title">
+                <el-icon><ChatDotRound /></el-icon>
+                讨论要点 ({{ selectedMeeting.summary.points?.length || 0 }})
+              </div>
               <ul class="item-list">
                 <li v-for="(point, index) in selectedMeeting.summary.points" :key="index">
                   {{ point }}
@@ -350,16 +406,66 @@
               </ul>
             </div>
             
+            <!-- 决策事项 -->
             <div class="summary-item">
-              <div class="item-title">决策事项</div>
-              <ul class="item-list">
+              <div class="item-title">
+                <el-icon><Select /></el-icon>
+                决策事项 ({{ selectedMeeting.summary.decisions?.length || 0 }})
+              </div>
+              <ul class="item-list decision-list">
                 <li v-for="(decision, index) in selectedMeeting.summary.decisions" :key="index">
                   {{ decision }}
                 </li>
               </ul>
             </div>
+            
+            <!-- 待办事项 -->
+            <div v-if="selectedMeeting.summary.action_items && selectedMeeting.summary.action_items.length > 0" class="summary-item">
+              <div class="item-title">
+                <el-icon><List /></el-icon>
+                待办事项 ({{ selectedMeeting.summary.action_items.length }})
+              </div>
+              <ul class="item-list action-list">
+                <li v-for="(item, index) in selectedMeeting.summary.action_items" :key="index">
+                  {{ item }}
+                </li>
+              </ul>
+            </div>
+            
+            <!-- 问题和风险 -->
+            <div v-if="selectedMeeting.summary.issues && selectedMeeting.summary.issues.length > 0" class="summary-item">
+              <div class="item-title">
+                <el-icon><Warning /></el-icon>
+                问题和风险 ({{ selectedMeeting.summary.issues.length }})
+              </div>
+              <ul class="item-list issue-list">
+                <li v-for="(issue, index) in selectedMeeting.summary.issues" :key="index">
+                  {{ issue }}
+                </li>
+              </ul>
+            </div>
+            
+            <!-- 完整转录文本 -->
+            <div v-if="selectedMeeting.summary.transcription_text" class="summary-item full-transcription">
+              <div class="item-title">
+                <el-icon><DocumentCopy /></el-icon>
+                完整转录文本
+                <el-button
+                  text
+                  size="small"
+                  icon="Download"
+                  @click="downloadTranscription"
+                >
+                  导出
+                </el-button>
+              </div>
+              <div class="item-content transcription-text">
+                {{ selectedMeeting.summary.transcription_text }}
+              </div>
+            </div>
           </div>
           
+          <el-empty v-else-if="realtimeTranscription.length > 0" description='点击"生成摘要"按钮，基于转录内容生成会议记录' />
           <el-empty v-else description="会议结束后可生成摘要" />
         </div>
 
@@ -498,7 +604,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Microphone, VideoPlay, VideoPause, Calendar, Clock, Location, User,
-  VideoCamera, SwitchButton, TrendCharts, Files, Loading, Select, CircleClose
+  VideoCamera, SwitchButton, TrendCharts, Files, Loading, Select, CircleClose,
+  Document, CopyDocument, ChatDotRound, List, Warning, DocumentCopy
 } from '@element-plus/icons-vue'
 import {
   StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
@@ -1235,31 +1342,338 @@ const removeMark = (index: number) => {
 }
 
 // 生成摘要
-const generateSummary = () => {
+const generateSummary = async () => {
   if (!selectedMeeting.value) {
     ElMessage.warning('请选择会议')
     return
   }
   
+  // 检查是否有转录内容
+  if (!realtimeTranscription.value || realtimeTranscription.value.length === 0) {
+    ElMessage.warning('没有会议转录内容，无法生成摘要')
+    return
+  }
+  
   generatingSummary.value = true
   
-  setTimeout(() => {
-    selectedMeeting.value.summary = {
-      topic: selectedMeeting.value.title,
-      points: [
-        '讨论了项目规划和资源分配',
-        '分析了技术方案的可行性',
-        '确定了下一阶段的工作重点'
-      ],
-      decisions: [
-        '同意采用新技术架构',
-        '决定成立专项工作组',
-        '确定下周进行技术评审'
-      ]
-    }
+  try {
+    // 合并所有转录文本
+    const fullTranscriptionText = realtimeTranscription.value
+      .map(seg => `[${formatTime(seg.time)}] ${seg.speaker}：${seg.text}`)
+      .join('\n')
+    
+    // 提取纯文本用于分析
+    const pureText = realtimeTranscription.value
+      .map(seg => seg.text)
+      .join(' ')
+    
+    console.log('开始生成会议摘要，转录文本长度:', pureText.length, '字符')
+    
+    // 使用简单的关键词提取和文本分析生成摘要
+    const summary = analyzeTranscriptionAndGenerateSummary(
+      selectedMeeting.value.title,
+      pureText,
+      realtimeTranscription.value
+    )
+    
+    // 保存完整的转录文本到 summary 中
+    summary.transcription_text = fullTranscriptionText
+    
+    selectedMeeting.value.summary = summary
     generatingSummary.value = false
-    ElMessage.success('摘要生成成功')
-  }, 2000)
+    ElMessage.success('会议摘要生成成功！')
+  } catch (error: any) {
+    console.error('生成摘要失败:', error)
+    generatingSummary.value = false
+    ElMessage.error(`生成摘要失败: ${error.message || '未知错误'}`)
+  }
+}
+
+// 分析转录文本并生成摘要
+const analyzeTranscriptionAndGenerateSummary = (meetingTitle: string, transcriptionText: string, segments: any[]) => {
+  console.log('分析转录文本...')
+  
+  // 提取关键词（简单实现：基于词汇频率）
+  const keywords = extractKeywords(transcriptionText)
+  
+  // 识别讨论要点（基于转录段落和关键词）
+  const points = extractDiscussionPoints(segments, keywords)
+  
+  // 识别决策事项（查找包含"决定"、"同意"、"确定"等词汇的句子）
+  const decisions = extractDecisions(segments)
+  
+  // 识别待办事项（查找包含"需要"、"安排"、"计划"等词汇的句子）
+  const actionItems = extractActionItems(segments)
+  
+  // 识别问题和风险
+  const issues = extractIssues(segments)
+  
+  // 识别参与人员
+  const participants = [...new Set(segments.map(s => s.speaker))]
+    .filter(s => s !== '语音识别' && s)
+  
+  console.log('摘要分析完成:', {
+    topic: meetingTitle,
+    pointsCount: points.length,
+    decisionsCount: decisions.length,
+    actionItemsCount: actionItems.length,
+    issuesCount: issues.length,
+    participants
+  })
+  
+  return {
+    topic: meetingTitle,
+    transcription_text: '', // 会在调用时填充
+    points: points.length > 0 ? points : ['暂无明确的讨论要点'],
+    decisions: decisions.length > 0 ? decisions : ['暂无明确的决策事项'],
+    action_items: actionItems.length > 0 ? actionItems : [],
+    issues: issues.length > 0 ? issues : [],
+    participants: participants.length > 0 ? participants : [],
+    keywords: keywords.slice(0, 10), // 取前10个关键词
+    duration: segments.length > 0 ? formatTime(segments[segments.length - 1].time) : '0:00'
+  }
+}
+
+// 提取关键词
+const extractKeywords = (text: string): string[] => {
+  // 简单的关键词提取算法
+  const stopWords = ['的', '了', '是', '在', '和', '与', '或', '但', '而', '等', '很', '也', '都', '就', '这', '那', '我', '你', '他', '她', '它', '我们', '你们', '他们']
+  const words = text.split(/[\s,。！？，、；：""''（）\[\]]+/)
+    .filter(word => word.length > 1 && !stopWords.includes(word))
+  
+  // 统计词频
+  const wordCount = new Map<string, number>()
+  words.forEach(word => {
+    wordCount.set(word, (wordCount.get(word) || 0) + 1)
+  })
+  
+  // 按频率排序
+  return Array.from(wordCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+}
+
+// 提取讨论要点
+const extractDiscussionPoints = (segments: any[], keywords: string[]): string[] => {
+  const points: string[] = []
+  const usedSegments = new Set<number>()
+  
+  // 根据关键词和时间段提取讨论要点
+  segments.forEach((seg, index) => {
+    if (usedSegments.has(index)) return
+    
+    const text = seg.text
+    const time = formatTime(seg.time)
+    
+    // 检查是否包含关键词
+    const hasKeyword = keywords.some(kw => text.includes(kw))
+    
+    // 检查是否是独立的讨论段落（长度适中）
+    if (hasKeyword && text.length > 5 && text.length < 100) {
+      points.push(`[${time}] ${seg.speaker}: ${text}`)
+      usedSegments.add(index)
+      
+      // 标记相邻的短片段为已使用
+      if (index + 1 < segments.length && segments[index + 1].text.length < 20) {
+        usedSegments.add(index + 1)
+      }
+    }
+  })
+  
+  // 如果没有提取到要点，返回一些默认的
+  if (points.length === 0) {
+    const keySegments = segments.filter(seg => seg.text.length > 10)
+    keySegments.slice(0, 3).forEach(seg => {
+      points.push(`[${formatTime(seg.time)}] ${seg.speaker}: ${seg.text}`)
+    })
+  }
+  
+  return points.slice(0, 8) // 最多返回8个要点
+}
+
+// 提取决策事项
+const extractDecisions = (segments: any[]): string[] => {
+  const decisionKeywords = ['决定', '同意', '确定', '选定', '批准', '通过', '采纳', '采用', '确认', '认可']
+  const decisions: string[] = []
+  
+  segments.forEach(seg => {
+    const text = seg.text
+    
+    // 查找包含决策关键词的句子
+    decisionKeywords.forEach(keyword => {
+      if (text.includes(keyword) && text.length > 3) {
+        const time = formatTime(seg.time)
+        // 提取完整的决策句子
+        const sentences = text.split(/[。！？\n]/)
+        sentences.forEach((sentence: string) => {
+          if (sentence.includes(keyword) && sentence.trim().length > 2) {
+            const decision = `[${time}] ${seg.speaker} ${sentence.trim()}`
+            if (!decisions.includes(decision)) {
+              decisions.push(decision)
+            }
+          }
+        })
+      }
+    })
+  })
+  
+  return decisions.slice(0, 5) // 最多返回5个决策
+}
+
+// 提取待办事项
+const extractActionItems = (segments: any[]): string[] => {
+  const actionKeywords = ['需要', '安排', '计划', '要', '应该', '必须', '准备', '完成', '负责', '跟进', '处理', '解决']
+  const actions: string[] = []
+  
+  segments.forEach(seg => {
+    const text = seg.text
+    
+    actionKeywords.forEach(keyword => {
+      if (text.includes(keyword) && text.length > 3) {
+        const time = formatTime(seg.time)
+        const sentences = text.split(/[。！？\n]/)
+        sentences.forEach((sentence: string) => {
+          if (sentence.includes(keyword) && sentence.trim().length > 2) {
+            const action = `[${time}] ${seg.speaker} ${sentence.trim()}`
+            if (!actions.includes(action)) {
+              actions.push(action)
+            }
+          }
+        })
+      }
+    })
+  })
+  
+  return actions.slice(0, 6) // 最多返回6个待办事项
+}
+
+// 提取问题和风险
+const extractIssues = (segments: any[]): string[] => {
+  const issueKeywords = ['问题', '困难', '挑战', '风险', '担心', '疑虑', '不足', '缺陷', '错误', '故障', '影响']
+  const issues: string[] = []
+  
+  segments.forEach(seg => {
+    const text = seg.text
+    
+    issueKeywords.forEach(keyword => {
+      if (text.includes(keyword) && text.length > 3) {
+        const time = formatTime(seg.time)
+        const sentences = text.split(/[。！？\n]/)
+        sentences.forEach((sentence: string) => {
+          if (sentence.includes(keyword) && sentence.trim().length > 2) {
+            const issue = `[${time}] ${seg.speaker} ${sentence.trim()}`
+            if (!issues.includes(issue)) {
+              issues.push(issue)
+            }
+          }
+        })
+      }
+    })
+  })
+  
+  return issues.slice(0, 5) // 最多返回5个问题
+}
+
+// 复制摘要
+const copySummary = () => {
+  if (!selectedMeeting.value || !selectedMeeting.value.summary) {
+    ElMessage.warning('没有可复制的摘要')
+    return
+  }
+  
+  const summary = selectedMeeting.value.summary
+  let summaryText = `会议摘要\n${'='.repeat(50)}\n\n`
+  summaryText += `会议主题：${summary.topic}\n`
+  
+  if (summary.participants && summary.participants.length > 0) {
+    summaryText += `\n参与人员：${summary.participants.join('、')}\n`
+  }
+  
+  if (summary.keywords && summary.keywords.length > 0) {
+    summaryText += `\n关键词：${summary.keywords.join('、')}\n`
+  }
+  
+  if (summary.points && summary.points.length > 0) {
+    summaryText += `\n讨论要点：\n`
+    summary.points.forEach((point: string, index: number) => {
+      summaryText += `${index + 1}. ${point}\n`
+    })
+  }
+  
+  if (summary.decisions && summary.decisions.length > 0) {
+    summaryText += `\n决策事项：\n`
+    summary.decisions.forEach((decision: string, index: number) => {
+      summaryText += `${index + 1}. ${decision}\n`
+    })
+  }
+  
+  if (summary.action_items && summary.action_items.length > 0) {
+    summaryText += `\n待办事项：\n`
+    summary.action_items.forEach((item: string, index: number) => {
+      summaryText += `${index + 1}. [ ] ${item}\n`
+    })
+  }
+  
+  if (summary.issues && summary.issues.length > 0) {
+    summaryText += `\n问题和风险：\n`
+    summary.issues.forEach((issue: string, index: number) => {
+      summaryText += `${index + 1}. ${issue}\n`
+    })
+  }
+  
+  if (summary.transcription_text) {
+    summaryText += `\n\n${'='.repeat(50)}\n完整转录文本：\n${summary.transcription_text}\n`
+  }
+  
+  // 复制到剪贴板
+  try {
+    navigator.clipboard.writeText(summaryText).then(() => {
+      ElMessage.success('摘要已复制到剪贴板')
+    }).catch(() => {
+      // 降级方案
+      const textarea = document.createElement('textarea')
+      textarea.value = summaryText
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      ElMessage.success('摘要已复制到剪贴板')
+    })
+  } catch (error) {
+    ElMessage.error('复制失败')
+    console.error('复制失败:', error)
+  }
+}
+
+// 导出转录文本
+const downloadTranscription = () => {
+  if (!selectedMeeting.value || !selectedMeeting.value.summary?.transcription_text) {
+    ElMessage.warning('没有可导出的转录文本')
+    return
+  }
+  
+  const transcriptionText = selectedMeeting.value.summary.transcription_text
+  const filename = `会议转录_${selectedMeeting.value.title}_${new Date().toISOString().slice(0, 10)}.txt`
+  
+  try {
+    // 创建 Blob
+    const blob = new Blob([transcriptionText], { type: 'text/plain;charset=utf-8' })
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('转录文本已导出')
+  } catch (error) {
+    ElMessage.error('导出失败')
+    console.error('导出失败:', error)
+  }
 }
 
 // 保存笔记
@@ -2013,6 +2427,153 @@ onUnmounted(() => {
 .history-actions {
   display: flex;
   gap: 8px;
+}
+
+/* 摘要部分的新样式 */
+.section-header .header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #409eff;
+  margin-bottom: 8px;
+}
+
+.item-title .el-icon {
+  font-size: 16px;
+}
+
+.item-content {
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.6;
+}
+
+.item-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.8;
+}
+
+.item-list li {
+  margin-bottom: 6px;
+}
+
+/* 决策事项列表 */
+.decision-list li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.decision-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #67c23a;
+  font-weight: bold;
+}
+
+/* 待办事项列表 */
+.action-list li {
+  position: relative;
+  padding-left: 24px;
+}
+
+.action-list li::before {
+  content: '☐';
+  position: absolute;
+  left: 0;
+  color: #409eff;
+  font-weight: bold;
+}
+
+/* 问题列表 */
+.issue-list li {
+  position: relative;
+  padding-left: 16px;
+  color: #e6a23c;
+}
+
+.issue-list li::before {
+  content: '!';
+  position: absolute;
+  left: 0;
+  color: #f56c6c;
+  font-weight: bold;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fef0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* 完整转录文本 */
+.full-transcription {
+  margin-top: 16px;
+}
+
+.full-transcription .item-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.transcription-text {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 6px;
+  border-left: 4px solid #409eff;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #606266;
+}
+
+.transcription-text::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transcription-text::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.transcription-text::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+/* 响应式调整 */
+@media (max-width: 1400px) {
+  .main-content {
+    grid-template-columns: 280px 1fr 320px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .left-panel,
+  .right-panel {
+    height: auto;
+  }
 }
 
 /* 滚动条样式 */
