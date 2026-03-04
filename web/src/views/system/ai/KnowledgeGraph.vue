@@ -134,11 +134,11 @@
                 <div class="simple-graph">
                   <div class="graph-visualization">
                     <!-- 连线表示关系 -->
-                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" overflow="visible">
+                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible">
                       <defs>
-                        <marker id="arrowhead" markerWidth="5" markerHeight="3" 
-                                refX="4.5" refY="1.5" orient="auto">
-                          <polygon points="0 0, 5 1.5, 0 3" fill="#6366f1" />
+                        <marker id="arrowhead" markerWidth="10" markerHeight="8" 
+                                refX="9" refY="4" orient="auto">
+                          <polygon points="0 0, 10 4, 0 8" fill="#6366f1" />
                         </marker>
                       </defs>
                       <line 
@@ -473,12 +473,13 @@ const getNodeStyle = (node: any) => {
     validation: '#8e44ad'
   }
   
+  const size = node.symbolSize * 2.0
   return {
-    left: `${node.x}%`,
-    top: `${node.y}%`,
+    left: `calc(${node.x}% - ${size / 2}px)`,
+    top: `calc(${node.y}% - ${size / 2}px)`,
     backgroundColor: colors[node.category] || '#ccc',
-    width: `${node.symbolSize * 2.0}px`,
-    height: `${node.symbolSize * 2.0}px`
+    width: `${size}px`,
+    height: `${size}px`
   }
 }
 
@@ -520,16 +521,37 @@ const getAdjustedEdgePositions = (edge) => {
   
   if (!sourceNode || !targetNode) {
     return {
-      x1: sourceNode?.x || 0,
-      y1: sourceNode?.y || 0,
-      x2: targetNode?.x || 0,
-      y2: targetNode?.y || 0
+      x1: 0,
+      y1: 0,
+      x2: 0,
+      y2: 0
     }
   }
   
-  // 计算方向向量
-  const dx = targetNode.x - sourceNode.x
-  const dy = targetNode.y - sourceNode.y
+  // 获取容器
+  const container = document.querySelector('.graph-visualization')
+  if (!container) {
+    return {
+      x1: sourceNode.x,
+      y1: sourceNode.y,
+      x2: targetNode.x,
+      y2: targetNode.y
+    }
+  }
+  
+  const containerRect = container.getBoundingClientRect()
+  const containerWidth = containerRect.width
+  const containerHeight = containerRect.height
+  
+  // 将百分比坐标转换为像素坐标（现在 (x, y) 是节点的中心点）
+  const sourceX = (sourceNode.x / 100) * containerWidth
+  const sourceY = (sourceNode.y / 100) * containerHeight
+  const targetX = (targetNode.x / 100) * containerWidth
+  const targetY = (targetNode.y / 100) * containerHeight
+  
+  // 计算方向向量（像素坐标）
+  const dx = targetX - sourceX
+  const dy = targetY - sourceY
   const distance = Math.sqrt(dx * dx + dy * dy)
   
   if (distance === 0) {
@@ -545,50 +567,24 @@ const getAdjustedEdgePositions = (edge) => {
   const ux = dx / distance
   const uy = dy / distance
   
-  // 计算节点的实际像素尺寸
-  const container = document.querySelector('.graph-visualization')
-  if (!container) {
-    return {
-      x1: sourceNode.x,
-      y1: sourceNode.y,
-      x2: targetNode.x,
-      y2: targetNode.y
-    }
-  }
+  // 节点实际像素半径（节点的尺寸是 symbolSize * 2.0，半径是其中一半）
+  const sourceRadiusPx = sourceNode.symbolSize
+  const targetRadiusPx = targetNode.symbolSize
   
-  const containerRect = container.getBoundingClientRect()
-  const containerWidth = containerRect.width
-  const containerHeight = containerRect.height
+  // 计算从源节点中心到边缘的距离
+  const sourceEdgeX = sourceX + ux * sourceRadiusPx
+  const sourceEdgeY = sourceY + uy * sourceRadiusPx
   
-  // 节点实际像素尺寸
-  const sourceWidthPx = sourceNode.symbolSize * 2.0
-  const sourceHeightPx = sourceNode.symbolSize * 2.0
-  const targetWidthPx = targetNode.symbolSize * 2.0
-  const targetHeightPx = targetNode.symbolSize * 2.0
+  // 计算到目标节点边缘的距离（留出箭头空间）
+  const arrowLength = 8  // 箭头长度
+  const targetEdgeX = targetX - ux * (targetRadiusPx + arrowLength)
+  const targetEdgeY = targetY - uy * (targetRadiusPx + arrowLength)
   
-  // 转换为百分比
-  const sourceRadiusPercentX = (sourceWidthPx / 2) / containerWidth * 100
-  const sourceRadiusPercentY = (sourceHeightPx / 2) / containerHeight * 100
-  const targetRadiusPercentX = (targetWidthPx / 2) / containerWidth * 100
-  const targetRadiusPercentY = (targetHeightPx / 2) / containerHeight * 100
-  
-  // 根据方向向量选择对应的半径百分比
-  const sourceRadiusPercent = Math.sqrt(
-    Math.pow(ux * sourceRadiusPercentX, 2) + 
-    Math.pow(uy * sourceRadiusPercentY, 2)
-  )
-  const targetRadiusPercent = Math.sqrt(
-    Math.pow(ux * targetRadiusPercentX, 2) + 
-    Math.pow(uy * targetRadiusPercentY, 2)
-  )
-  
-  // 调整源节点坐标：沿向量方向移动半径
-  const adjustedSourceX = sourceNode.x + ux * sourceRadiusPercent
-  const adjustedSourceY = sourceNode.y + uy * sourceRadiusPercent
-  
-  // 调整目标节点坐标：沿向量反方向移动半径（让箭头指向边缘）
-  const adjustedTargetX = targetNode.x - ux * targetRadiusPercent
-  const adjustedTargetY = targetNode.y - uy * targetRadiusPercent
+  // 将像素坐标转换回百分比
+  const adjustedSourceX = (sourceEdgeX / containerWidth) * 100
+  const adjustedSourceY = (sourceEdgeY / containerHeight) * 100
+  const adjustedTargetX = (targetEdgeX / containerWidth) * 100
+  const adjustedTargetY = (targetEdgeY / containerHeight) * 100
   
   return {
     x1: adjustedSourceX,
@@ -1106,14 +1102,13 @@ onMounted(() => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translate(-50%, -50%);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   border: 2px solid rgba(255,255,255,0.3);
   backdrop-filter: blur(4px);
 }
 
 .graph-node:hover {
-  transform: translate(-50%, -50%) scale(1.15);
+  transform: scale(1.15);
   z-index: 10;
   box-shadow: 0 8px 25px rgba(0,0,0,0.25);
 }
