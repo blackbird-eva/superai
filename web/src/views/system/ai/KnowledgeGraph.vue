@@ -21,8 +21,6 @@
       </div>
     </div>
 
-
-
     <!-- 主要内容区域 -->
     <div class="main-content">
       <el-row :gutter="16">
@@ -105,137 +103,80 @@
               </div>
             </div>
           </el-card>
-
         </el-col>
 
         <!-- 图谱可视化区域 -->
         <el-col :span="21">
           <el-card class="graph-viewer-card">
-
-
-            <!-- 图谱容器 - 使用普通div而不是动态ref -->
+            <template #header>
+              <div class="viewer-header">
+                <div class="viewer-title">
+                  {{ selectedGraph ? selectedGraph.name : '知识图谱可视化' }}
+                </div>
+                <div class="viewer-controls">
+                  <!-- 布局选择 -->
+                  <el-select v-model="currentLayout" placeholder="选择布局" size="small" style="width: 120px">
+                    <el-option label="力导向布局" value="cose" />
+                    <el-option label="圆形布局" value="circle" />
+                    <el-option label="网格布局" value="grid" />
+                    <el-option label="树形布局" value="breadthfirst" />
+                    <el-option label="随机布局" value="random" />
+                  </el-select>
+                  
+                  <el-divider direction="vertical" />
+                  
+                  <!-- 缩放控制 -->
+                  <el-button-group>
+                    <el-button size="small" @click="zoomIn">
+                      <el-icon><ZoomIn /></el-icon>
+                    </el-button>
+                    <el-button size="small" @click="zoomOut">
+                      <el-icon><ZoomOut /></el-icon>
+                    </el-button>
+                    <el-button size="small" @click="fitGraph">
+                      <el-icon><FullScreen /></el-icon>
+                    </el-button>
+                    <el-button size="small" @click="resetGraph">
+                      <el-icon><RefreshRight /></el-icon>
+                    </el-button>
+                  </el-button-group>
+                  
+                  <el-divider direction="vertical" />
+                  
+                  <!-- 其他操作 -->
+                  <el-button size="small" @click="toggleLabels">
+                    <el-icon><View /></el-icon>
+                    {{ showLabels ? '隐藏标签' : '显示标签' }}
+                  </el-button>
+                  
+                  <el-button size="small" @click="exportImage">
+                    <el-icon><Download /></el-icon>
+                    导出图片
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            
+            <!-- 图谱容器 -->
             <div class="graph-container">
-              <div v-if="!selectedGraph" class="simple-graph-container">
-                <!-- 空的可视化区域 -->
-                <div class="simple-graph">
-                  <div class="graph-visualization" style="display: flex; align-items: center; justify-content: center;">
-                    <div style="color: #909399; font-size: 14px;">请从左侧选择一个知识图谱</div>
-                  </div>
+              <div v-if="!selectedGraph" class="empty-state">
+                <div class="empty-content">
+                  <el-icon :size="80" color="#d3d4d6"><TrendCharts /></el-icon>
+                  <p class="empty-text">请从左侧选择一个知识图谱</p>
+                  <p class="empty-hint">选择图谱后将展示交互式知识网络</p>
                 </div>
               </div>
               <div v-else-if="loading" class="loading-state">
                 <div class="loading-wrapper">
-                  <el-icon class="loading-icon" :size="32"><Loading /></el-icon>
+                  <el-icon class="loading-icon" :size="48"><Loading /></el-icon>
                   <p>正在加载图谱数据...</p>
                 </div>
               </div>
-              <div v-else class="simple-graph-container">
-                <!-- 使用简单的CSS和HTML来显示图谱 -->
-                <div class="simple-graph">
-                  <div class="graph-visualization">
-                    <!-- 连线表示关系 -->
-                    <svg class="relation-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible">
-                      <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="8" 
-                                refX="9" refY="4" orient="auto">
-                          <polygon points="0 0, 10 4, 0 8" fill="#6366f1" />
-                        </marker>
-                      </defs>
-                      <line 
-                        v-for="edge in selectedGraph.edges"
-                        :key="edge.source + '-' + edge.target"
-                        :x1="getAdjustedEdgePositions(edge).x1"
-                        :y1="getAdjustedEdgePositions(edge).y1"
-                        :x2="getAdjustedEdgePositions(edge).x2"
-                        :y2="getAdjustedEdgePositions(edge).y2"
-                        stroke="#6366f1" 
-                        stroke-width="1.0"
-                        stroke-opacity="0.9"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        marker-end="url(#arrowhead)"
-                      />
-                    </svg>
-                    
-                    <!-- 节点 -->
-                    <div class="graph-nodes">
-                      <div 
-                        v-for="node in currentNodes"
-                        :key="node.id"
-                        :class="['graph-node', node.category]"
-                        :style="getNodeStyle(node)"
-                        @mouseover="hoverNode = node"
-                        @mouseleave="hoverNode = null"
-                      >
-                        <div class="node-content">
-                          <div class="node-name">{{ node.name }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- 关系说明 -->
-                  <div class="relations-panel">
-                    <h4>主要关联关系</h4>
-                    <div class="relation-list">
-                      <div 
-                        v-for="edge in selectedGraph.edges.slice(0, 6)"
-                        :key="edge.source + '-' + edge.target"
-                        class="relation-item"
-                      >
-                        <span class="source-node">{{ getNodeById(edge.source)?.name }}</span>
-                        <span class="relation-arrow">→ {{ edge.relation }} →</span>
-                        <span class="target-node">{{ getNodeById(edge.target)?.name }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="graph-legend">
-                    <h4>专业类别</h4>
-                    <div class="legend-item">
-                      <span class="legend-color core"></span>
-                      <span>核心概念</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color design"></span>
-                      <span>总体设计</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color system"></span>
-                      <span>系统组成</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color structure"></span>
-                      <span>结构部件</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color performance"></span>
-                      <span>性能指标</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color theory"></span>
-                      <span>理论基础</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color analysis"></span>
-                      <span>分析方法</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-color control"></span>
-                      <span>控制技术</span>
-                    </div>
-                  </div>
-                  
-                  <div v-if="hoverNode" class="node-tooltip">
-                    <strong>{{ hoverNode.name }}</strong><br>
-                    类别: {{ getCategoryLabel(hoverNode.category) }}<br>
-                    专业领域: {{ selectedGraph.domain }}
-                  </div>
-                </div>
+              <div v-else class="cytoscape-container" ref="cytoscapeContainer">
+                <!-- Cytoscape 图形将在这里渲染 -->
               </div>
             </div>
           </el-card>
-
         </el-col>
       </el-row>
     </div>
@@ -275,29 +216,63 @@
         <el-button type="primary" @click="saveGraph" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 节点详情对话框 -->
+    <el-dialog
+      title="节点详情"
+      v-model="showNodeDetail"
+      width="500px"
+    >
+      <div v-if="selectedNode" class="node-detail">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="节点名称">{{ selectedNode.name }}</el-descriptions-item>
+          <el-descriptions-item label="类别">{{ getCategoryLabel(selectedNode.category) }}</el-descriptions-item>
+          <el-descriptions-item label="专业领域">{{ selectedGraph?.domain }}</el-descriptions-item>
+          <el-descriptions-item label="关联节点">
+            <el-tag
+              v-for="neighbor in getNodeNeighbors(selectedNode.id)"
+              :key="neighbor.id"
+              size="small"
+              style="margin: 2px"
+              @click="focusNode(neighbor.id)"
+            >
+              {{ neighbor.name }}
+            </el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   TrendCharts, VideoPlay, WindPower, Tools, Search, 
   Plus, Upload, Download, Edit, Delete, RefreshLeft, 
-  Setting, Loading 
+  Setting, Loading, ZoomIn, ZoomOut, FullScreen, 
+  RefreshRight, View
 } from '@element-plus/icons-vue'
+import cytoscape, { Core, NodeSingular, EdgeSingular } from 'cytoscape'
 
-// 响应式数据 - 简化版，不使用复杂的DOM引用
+// 响应式数据
 const loading = ref(false)
 const saving = ref(false)
 const showCreateDialog = ref(false)
-const showLayoutSettings = ref(false)
+const showNodeDetail = ref(false)
 const isEditing = ref(false)
 const selectedGraph = ref<any>(null)
+const selectedNode = ref<any>(null)
 const searchKeyword = ref('')
-const hoverNode = ref<any>(null)
+const currentLayout = ref('cose')
+const showLabels = ref(true)
+const cytoscapeContainer = ref<HTMLElement | null>(null)
 
-  // 统计数据
+// Cytoscape 实例
+let cy: Core | null = null
+
+// 统计数据
 const graphStats = reactive({
   totalNodes: 33,
   totalEdges: 45,
@@ -326,114 +301,109 @@ const formRules = {
   ]
 }
 
-  // 直升机专业知识图谱数据
-  const graphList = ref([
-    {
-      id: 1,
-      name: '直升机总体设计',
-      description: '涵盖直升机总体构型、系统设计、性能分析等核心技术知识',
-      domain: '总体设计',
-      nodeCount: 12,
-      nodes: [
-        { id: 'helicopter', name: '直升机', category: 'core', symbolSize: 45, x: 50, y: 50 },
-        { id: 'configuration', name: '总体构型', category: 'design', symbolSize: 35, x: 25, y: 25 },
-        { id: 'rotorsystem', name: '旋翼系统', category: 'system', symbolSize: 35, x: 75, y: 25 },
-        { id: 'transmissionsys', name: '传动系统', category: 'system', symbolSize: 30, x: 15, y: 45 },
-        { id: 'fuselage', name: '机体结构', category: 'structure', symbolSize: 30, x: 85, y: 45 },
-        { id: 'tailrotor', name: '尾桨系统', category: 'system', symbolSize: 25, x: 90, y: 15 },
-        { id: 'landinggear', name: '起落架', category: 'system', symbolSize: 25, x: 10, y: 65 },
-        { id: 'powerplant', name: '动力装置', category: 'system', symbolSize: 30, x: 40, y: 75 },
-        { id: 'flightcontrol', name: '飞控系统', category: 'system', symbolSize: 30, x: 60, y: 75 },
-        { id: 'weightbalance', name: '重量重心', category: 'performance', symbolSize: 25, x: 25, y: 85 },
-        { id: 'stability', name: '稳定性', category: 'performance', symbolSize: 25, x: 50, y: 85 },
-        { id: 'maneuverability', name: '操纵性', category: 'performance', symbolSize: 25, x: 75, y: 85 }
-      ],
-      edges: [
-        { source: 'helicopter', target: 'configuration', relation: '采用' },
-        { source: 'helicopter', target: 'rotorsystem', relation: '配备' },
-        { source: 'helicopter', target: 'transmissionsys', relation: '包含' },
-        { source: 'helicopter', target: 'fuselage', relation: '具有' },
-        { source: 'helicopter', target: 'tailrotor', relation: '配置' },
-        { source: 'helicopter', target: 'landinggear', relation: '安装' },
-        { source: 'helicopter', target: 'powerplant', relation: '搭载' },
-        { source: 'helicopter', target: 'flightcontrol', relation: '集成' },
-        { source: 'configuration', target: 'rotorsystem', relation: '决定' },
-        { source: 'rotorsystem', target: 'tailrotor', relation: '协同' },
-        { source: 'transmissionsys', target: 'powerplant', relation: '传递' },
-        { source: 'weightbalance', target: 'stability', relation: '影响' },
-        { source: 'stability', target: 'maneuverability', relation: '关联' }
-      ]
-    },
-    {
-      id: 2,
-      name: '旋翼空气动力学',
-      description: '直升机旋翼空气动力学理论与分析方法知识体系',
-      domain: '空气动力学',
-      nodeCount: 10,
-      nodes: [
-        { id: 'rotoraero', name: '旋翼空气动力学', category: 'core', symbolSize: 40, x: 50, y: 50 },
-        { id: 'bladetheory', name: '叶素理论', category: 'theory', symbolSize: 30, x: 20, y: 20 },
-        { id: 'vortextheory', name: '涡流理论', category: 'theory', symbolSize: 30, x: 80, y: 20 },
-        { id: 'inducedvelocity', name: '诱导速度', category: 'analysis', symbolSize: 30, x: 50, y: 20 },
-        { id: 'liftgeneration', name: '升力产生', category: 'mechanism', symbolSize: 25, x: 10, y: 40 },
-        { id: 'draganalysis', name: '阻力分析', category: 'analysis', symbolSize: 25, x: 35, y: 40 },
-        { id: 'torqueanalysis', name: '扭矩分析', category: 'analysis', symbolSize: 25, x: 65, y: 40 },
-        { id: 'loadanalysis', name: '载荷分析', category: 'analysis', symbolSize: 25, x: 90, y: 40 },
-        { id: 'compressibility', name: '压缩性效应', category: 'phenomenon', symbolSize: 20, x: 30, y: 70 },
-        { id: 'groundeffect', name: '地面效应', category: 'phenomenon', symbolSize: 20, x: 70, y: 70 }
-      ],
-      edges: [
-        { source: 'rotoraero', target: 'bladetheory', relation: '基于' },
-        { source: 'rotoraero', target: 'vortextheory', relation: '基于' },
-        { source: 'rotoraero', target: 'inducedvelocity', relation: '研究' },
-        { source: 'bladetheory', target: 'liftgeneration', relation: '解释' },
-        { source: 'bladetheory', target: 'draganalysis', relation: '分析' },
-        { source: 'vortextheory', target: 'torqueanalysis', relation: '预测' },
-        { source: 'vortextheory', target: 'loadanalysis', relation: '计算' },
-        { source: 'inducedvelocity', target: 'liftgeneration', relation: '影响' },
-        { source: 'compressibility', target: 'rotoraero', relation: '修正' },
-        { source: 'groundeffect', target: 'rotoraero', relation: '影响' }
-      ]
-    },
-    {
-      id: 3,
-      name: '飞行力学与控制',
-      description: '直升机飞行力学特性与飞行控制系统专业知识体系',
-      domain: '飞行控制',
-      nodeCount: 11,
-      nodes: [
-        { id: 'flightmechanics', name: '飞行力学', category: 'core', symbolSize: 40, x: 50, y: 50 },
-        { id: 'motioneq', name: '运动方程', category: 'theory', symbolSize: 30, x: 25, y: 25 },
-        { id: 'stabilityderiv', name: '稳定性导数', category: 'analysis', symbolSize: 30, x: 75, y: 25 },
-        { id: 'controlsys', name: '控制系统', category: 'system', symbolSize: 35, x: 50, y: 25 },
-        { id: 'flightenvelope', name: '飞行包线', category: 'performance', symbolSize: 30, x: 15, y: 50 },
-        { id: 'handlingquals', name: '操纵品质', category: 'performance', symbolSize: 25, x: 85, y: 50 },
-        { id: 'autostab', name: '自动稳定', category: 'control', symbolSize: 25, x: 30, y: 75 },
-        { id: 'attitudecontrol', name: '姿态控制', category: 'control', symbolSize: 25, x: 50, y: 75 },
-        { id: 'trajectorycontrol', name: '轨迹控制', category: 'control', symbolSize: 25, x: 70, y: 75 },
-        { id: 'vibrationcontrol', name: '振动控制', category: 'control', symbolSize: 20, x: 40, y: 90 },
-        { id: 'flighttest', name: '飞行试验', category: 'validation', symbolSize: 20, x: 60, y: 90 }
-      ],
-      edges: [
-        { source: 'flightmechanics', target: 'motioneq', relation: '建立' },
-        { source: 'flightmechanics', target: 'stabilityderiv', relation: '分析' },
-        { source: 'flightmechanics', target: 'controlsys', relation: '设计' },
-        { source: 'motioneq', target: 'flightenvelope', relation: '描述' },
-        { source: 'stabilityderiv', target: 'handlingquals', relation: '评价' },
-        { source: 'controlsys', target: 'autostab', relation: '实现' },
-        { source: 'controlsys', target: 'attitudecontrol', relation: '执行' },
-        { source: 'controlsys', target: 'trajectorycontrol', relation: '执行' },
-        { source: 'autostab', target: 'vibrationcontrol', relation: '抑制' },
-        { source: 'flightenvelope', target: 'flighttest', relation: '验证' },
-        { source: 'handlingquals', target: 'flighttest', relation: '评估' }
-      ]
-    }
-  ])
-
-  // 当前显示的节点和相关数据
-const currentNodes = ref([])
-const graphWidth = 800
-const graphHeight = 400
+// 直升机专业知识图谱数据
+const graphList = ref([
+  {
+    id: 1,
+    name: '直升机总体设计',
+    description: '涵盖直升机总体构型、系统设计、性能分析等核心技术知识',
+    domain: '总体设计',
+    nodeCount: 12,
+    nodes: [
+      { id: 'helicopter', name: '直升机', category: 'core', symbolSize: 45 },
+      { id: 'configuration', name: '总体构型', category: 'design', symbolSize: 35 },
+      { id: 'rotorsystem', name: '旋翼系统', category: 'system', symbolSize: 35 },
+      { id: 'transmissionsys', name: '传动系统', category: 'system', symbolSize: 30 },
+      { id: 'fuselage', name: '机体结构', category: 'structure', symbolSize: 30 },
+      { id: 'tailrotor', name: '尾桨系统', category: 'system', symbolSize: 25 },
+      { id: 'landinggear', name: '起落架', category: 'system', symbolSize: 25 },
+      { id: 'powerplant', name: '动力装置', category: 'system', symbolSize: 30 },
+      { id: 'flightcontrol', name: '飞控系统', category: 'system', symbolSize: 30 },
+      { id: 'weightbalance', name: '重量重心', category: 'performance', symbolSize: 25 },
+      { id: 'stability', name: '稳定性', category: 'performance', symbolSize: 25 },
+      { id: 'maneuverability', name: '操纵性', category: 'performance', symbolSize: 25 }
+    ],
+    edges: [
+      { source: 'helicopter', target: 'configuration', relation: '采用' },
+      { source: 'helicopter', target: 'rotorsystem', relation: '配备' },
+      { source: 'helicopter', target: 'transmissionsys', relation: '包含' },
+      { source: 'helicopter', target: 'fuselage', relation: '具有' },
+      { source: 'helicopter', target: 'tailrotor', relation: '配置' },
+      { source: 'helicopter', target: 'landinggear', relation: '安装' },
+      { source: 'helicopter', target: 'powerplant', relation: '搭载' },
+      { source: 'helicopter', target: 'flightcontrol', relation: '集成' },
+      { source: 'configuration', target: 'rotorsystem', relation: '决定' },
+      { source: 'rotorsystem', target: 'tailrotor', relation: '协同' },
+      { source: 'transmissionsys', target: 'powerplant', relation: '传递' },
+      { source: 'weightbalance', target: 'stability', relation: '影响' },
+      { source: 'stability', target: 'maneuverability', relation: '关联' }
+    ]
+  },
+  {
+    id: 2,
+    name: '旋翼空气动力学',
+    description: '直升机旋翼空气动力学理论与分析方法知识体系',
+    domain: '空气动力学',
+    nodeCount: 10,
+    nodes: [
+      { id: 'rotoraero', name: '旋翼空气动力学', category: 'core', symbolSize: 40 },
+      { id: 'bladetheory', name: '叶素理论', category: 'theory', symbolSize: 30 },
+      { id: 'vortextheory', name: '涡流理论', category: 'theory', symbolSize: 30 },
+      { id: 'inducedvelocity', name: '诱导速度', category: 'analysis', symbolSize: 30 },
+      { id: 'liftgeneration', name: '升力产生', category: 'mechanism', symbolSize: 25 },
+      { id: 'draganalysis', name: '阻力分析', category: 'analysis', symbolSize: 25 },
+      { id: 'torqueanalysis', name: '扭矩分析', category: 'analysis', symbolSize: 25 },
+      { id: 'loadanalysis', name: '载荷分析', category: 'analysis', symbolSize: 25 },
+      { id: 'compressibility', name: '压缩性效应', category: 'phenomenon', symbolSize: 20 },
+      { id: 'groundeffect', name: '地面效应', category: 'phenomenon', symbolSize: 20 }
+    ],
+    edges: [
+      { source: 'rotoraero', target: 'bladetheory', relation: '基于' },
+      { source: 'rotoraero', target: 'vortextheory', relation: '基于' },
+      { source: 'rotoraero', target: 'inducedvelocity', relation: '研究' },
+      { source: 'bladetheory', target: 'liftgeneration', relation: '解释' },
+      { source: 'bladetheory', target: 'draganalysis', relation: '分析' },
+      { source: 'vortextheory', target: 'torqueanalysis', relation: '预测' },
+      { source: 'vortextheory', target: 'loadanalysis', relation: '计算' },
+      { source: 'inducedvelocity', target: 'liftgeneration', relation: '影响' },
+      { source: 'compressibility', target: 'rotoraero', relation: '修正' },
+      { source: 'groundeffect', target: 'rotoraero', relation: '影响' }
+    ]
+  },
+  {
+    id: 3,
+    name: '飞行力学与控制',
+    description: '直升机飞行力学特性与飞行控制系统专业知识体系',
+    domain: '飞行控制',
+    nodeCount: 11,
+    nodes: [
+      { id: 'flightmechanics', name: '飞行力学', category: 'core', symbolSize: 40 },
+      { id: 'motioneq', name: '运动方程', category: 'theory', symbolSize: 30 },
+      { id: 'stabilityderiv', name: '稳定性导数', category: 'analysis', symbolSize: 30 },
+      { id: 'controlsys', name: '控制系统', category: 'system', symbolSize: 35 },
+      { id: 'flightenvelope', name: '飞行包线', category: 'performance', symbolSize: 30 },
+      { id: 'handlingquals', name: '操纵品质', category: 'performance', symbolSize: 25 },
+      { id: 'autostab', name: '自动稳定', category: 'control', symbolSize: 25 },
+      { id: 'attitudecontrol', name: '姿态控制', category: 'control', symbolSize: 25 },
+      { id: 'trajectorycontrol', name: '轨迹控制', category: 'control', symbolSize: 25 },
+      { id: 'vibrationcontrol', name: '振动控制', category: 'control', symbolSize: 20 },
+      { id: 'flighttest', name: '飞行试验', category: 'validation', symbolSize: 20 }
+    ],
+    edges: [
+      { source: 'flightmechanics', target: 'motioneq', relation: '建立' },
+      { source: 'flightmechanics', target: 'stabilityderiv', relation: '分析' },
+      { source: 'flightmechanics', target: 'controlsys', relation: '设计' },
+      { source: 'motioneq', target: 'flightenvelope', relation: '描述' },
+      { source: 'stabilityderiv', target: 'handlingquals', relation: '评价' },
+      { source: 'controlsys', target: 'autostab', relation: '实现' },
+      { source: 'controlsys', target: 'attitudecontrol', relation: '执行' },
+      { source: 'controlsys', target: 'trajectorycontrol', relation: '执行' },
+      { source: 'autostab', target: 'vibrationcontrol', relation: '抑制' },
+      { source: 'flightenvelope', target: 'flighttest', relation: '验证' },
+      { source: 'handlingquals', target: 'flighttest', relation: '评估' }
+    ]
+  }
+])
 
 // 计算属性
 const filteredGraphs = computed(() => {
@@ -444,22 +414,9 @@ const filteredGraphs = computed(() => {
   )
 })
 
-// 方法
-const selectGraph = (graph: any) => {
-  console.log('选择图谱:', graph.name)
-  selectedGraph.value = graph
-  loading.value = true
-  
-  // 模拟加载延迟
-  setTimeout(() => {
-    currentNodes.value = graph.nodes || []
-    loading.value = false
-    console.log('图谱加载完成，节点数:', currentNodes.value.length)
-  }, 800)
-}
-
-const getNodeStyle = (node: any) => {
-  const colors = {
+// 获取节点颜色
+const getNodeColor = (category: string): string => {
+  const colors: { [key: string]: string } = {
     core: '#e74c3c',
     design: '#3498db',
     system: '#2ecc71',
@@ -472,136 +429,391 @@ const getNodeStyle = (node: any) => {
     control: '#27ae60',
     validation: '#8e44ad'
   }
-  
-  const size = node.symbolSize * 2.0
-  return {
-    left: `calc(${node.x}% - ${size / 2}px)`,
-    top: `calc(${node.y}% - ${size / 2}px)`,
-    backgroundColor: colors[node.category] || '#ccc',
-    width: `${size}px`,
-    height: `${size}px`
-  }
+  return colors[category] || '#95a5a6'
 }
 
-const getDomainColor = (domain: string) => {
-  const colors: { [key: string]: string } = {
-    '人工智能': 'danger',
-    '机器学习': 'success',
-    '深度学习': 'warning',
-    '自然语言处理': 'info',
-    '计算机视觉': 'primary',
-    '数据挖掘': ''
+// 初始化 Cytoscape
+const initCytoscape = () => {
+  if (!cytoscapeContainer.value || !selectedGraph.value) return
+
+  // 销毁旧实例
+  if (cy) {
+    cy.destroy()
   }
-  return colors[domain] || ''
+
+  // 准备节点数据
+  const nodes = selectedGraph.value.nodes.map((node: any) => ({
+    data: {
+      id: node.id,
+      name: node.name,
+      category: node.category,
+      size: node.symbolSize,
+      color: getNodeColor(node.category)
+    }
+  }))
+
+  // 准备边数据
+  const edges = selectedGraph.value.edges.map((edge: any) => ({
+    data: {
+      id: `${edge.source}-${edge.target}`,
+      source: edge.source,
+      target: edge.target,
+      relation: edge.relation
+    }
+  }))
+
+  // 创建 Cytoscape 实例
+  cy = cytoscape({
+    container: cytoscapeContainer.value,
+    elements: [...nodes, ...edges],
+    
+    // 节点样式
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(color)',
+          'label': showLabels.value ? 'data(name)' : '',
+          'width': 'data(size)',
+          'height': 'data(size)',
+          'font-size': '12px',
+          'font-weight': 'bold',
+          'color': '#2c3e50',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-outline-color': '#fff',
+          'text-outline-width': 2,
+          'border-width': 2,
+          'border-color': '#fff',
+          'overlay-opacity': 0
+        }
+      },
+      {
+        selector: 'node:selected',
+        style: {
+          'border-width': 4,
+          'border-color': '#3498db',
+          'overlay-color': '#3498db',
+          'overlay-opacity': 0.2
+        }
+      },
+      {
+        selector: 'node.highlighted',
+        style: {
+          'border-width': 3,
+          'border-color': '#f39c12',
+          'overlay-color': '#f39c12',
+          'overlay-opacity': 0.3
+        }
+      },
+      {
+        selector: 'node.faded',
+        style: {
+          'opacity': 0.3
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 2,
+          'line-color': '#bdc3c7',
+          'target-arrow-color': '#bdc3c7',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'arrow-scale': 0.8,
+          'overlay-opacity': 0
+        }
+      },
+      {
+        selector: 'edge:selected',
+        style: {
+          'line-color': '#3498db',
+          'target-arrow-color': '#3498db',
+          'width': 3
+        }
+      },
+      {
+        selector: 'edge.highlighted',
+        style: {
+          'line-color': '#e74c3c',
+          'target-arrow-color': '#e74c3c',
+          'width': 3,
+          'z-index': 999
+        }
+      },
+      {
+        selector: 'edge.faded',
+        style: {
+          'opacity': 0.2
+        }
+      }
+    ],
+    
+    // 交互设置
+    minZoom: 0.2,
+    maxZoom: 3,
+    wheelSensitivity: 0.3,
+    
+    // 初始化布局
+    layout: getLayoutOptions()
+  })
+
+  // 绑定事件
+  bindCytoscapeEvents()
 }
 
-const refreshGraph = () => {
-  if (selectedGraph.value) {
-    selectGraph(selectedGraph.value)
-    ElMessage.success('图谱已刷新')
-  }
-}
-
-// 获取节点位置（百分比坐标）
-const getNodePosition = (nodeId) => {
-  const node = currentNodes.value.find(n => n.id === nodeId)
-  if (!node) return { x: 0, y: 0 }
-  
-  // 直接返回百分比坐标（0-100）
-  return {
-    x: node.x,
-    y: node.y
-  }
-}
-
-// 获取调整后的边缘线条起点和终点（考虑节点半径）
-const getAdjustedEdgePositions = (edge) => {
-  const sourceNode = currentNodes.value.find(n => n.id === edge.source)
-  const targetNode = currentNodes.value.find(n => n.id === edge.target)
-  
-  if (!sourceNode || !targetNode) {
-    return {
-      x1: 0,
-      y1: 0,
-      x2: 0,
-      y2: 0
+// 获取布局选项
+const getLayoutOptions = () => {
+  const layouts: { [key: string]: any } = {
+    cose: {
+      name: 'cose',
+      idealEdgeLength: 100,
+      nodeOverlap: 20,
+      refresh: 20,
+      fit: true,
+      padding: 30,
+      randomize: false,
+      componentSpacing: 100,
+      nodeRepulsion: 400000,
+      edgeElasticity: 100,
+      nestingFactor: 5,
+      gravity: 80,
+      numIter: 1000,
+      initialTemp: 200,
+      coolingFactor: 0.95,
+      minTemp: 1.0
+    },
+    circle: {
+      name: 'circle',
+      fit: true,
+      padding: 30,
+      boundingBox: undefined,
+      avoidOverlap: true,
+      nodeDimensionsIncludeLabels: false,
+      spacingFactor: undefined,
+      radius: undefined,
+      startAngle: 3/2 * Math.PI,
+      sweep: undefined,
+      clockwise: true,
+      sort: undefined,
+      animate: true,
+      animationDuration: 1000
+    },
+    grid: {
+      name: 'grid',
+      fit: true,
+      padding: 30,
+      boundingBox: undefined,
+      avoidOverlap: true,
+      nodeDimensionsIncludeLabels: false,
+      spacingFactor: undefined,
+      condense: false,
+      rows: undefined,
+      cols: undefined,
+      position: undefined,
+      sort: undefined,
+      animate: true,
+      animationDuration: 1000
+    },
+    breadthfirst: {
+      name: 'breadthfirst',
+      fit: true,
+      directed: false,
+      padding: 30,
+      circle: false,
+      grid: false,
+      spacingFactor: 1.5,
+      boundingBox: undefined,
+      avoidOverlap: true,
+      nodeDimensionsIncludeLabels: false,
+      roots: undefined,
+      maximal: false,
+      animate: true,
+      animationDuration: 1000
+    },
+    random: {
+      name: 'random',
+      fit: true,
+      padding: 30,
+      boundingBox: undefined,
+      animate: true,
+      animationDuration: 1000
     }
   }
   
-  // 获取容器
-  const container = document.querySelector('.graph-visualization')
-  if (!container) {
-    return {
-      x1: sourceNode.x,
-      y1: sourceNode.y,
-      x2: targetNode.x,
-      y2: targetNode.y
+  return layouts[currentLayout.value] || layouts.cose
+}
+
+// 绑定 Cytoscape 事件
+const bindCytoscapeEvents = () => {
+  if (!cy) return
+
+  // 节点点击
+  cy.on('tap', 'node', (evt) => {
+    const node = evt.target
+    selectedNode.value = node.data()
+    showNodeDetail.value = true
+    
+    // 高亮相关节点和边
+    highlightNeighborhood(node)
+  })
+
+  // 边点击
+  cy.on('tap', 'edge', (evt) => {
+    const edge = evt.target
+    ElMessage.info(`关系: ${edge.data('relation')}`)
+  })
+
+  // 点击空白处
+  cy.on('tap', (evt) => {
+    if (evt.target === cy) {
+      clearHighlight()
+      selectedNode.value = null
+      showNodeDetail.value = false
     }
-  }
-  
-  const containerRect = container.getBoundingClientRect()
-  const containerWidth = containerRect.width
-  const containerHeight = containerRect.height
-  
-  // 将百分比坐标转换为像素坐标（现在 (x, y) 是节点的中心点）
-  const sourceX = (sourceNode.x / 100) * containerWidth
-  const sourceY = (sourceNode.y / 100) * containerHeight
-  const targetX = (targetNode.x / 100) * containerWidth
-  const targetY = (targetNode.y / 100) * containerHeight
-  
-  // 计算方向向量（像素坐标）
-  const dx = targetX - sourceX
-  const dy = targetY - sourceY
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  
-  if (distance === 0) {
-    return {
-      x1: sourceNode.x,
-      y1: sourceNode.y,
-      x2: targetNode.x,
-      y2: targetNode.y
+  })
+
+  // 节点悬停
+  cy.on('mouseover', 'node', (evt) => {
+    const node = evt.target
+    document.body.style.cursor = 'pointer'
+    highlightNeighborhood(node)
+  })
+
+  cy.on('mouseout', 'node', (evt) => {
+    document.body.style.cursor = 'default'
+    if (!showNodeDetail.value) {
+      clearHighlight()
     }
-  }
+  })
+}
+
+// 高亮相邻节点
+const highlightNeighborhood = (node: NodeSingular) => {
+  if (!cy) return
+
+  // 获取相邻节点
+  const neighborhood = node.neighborhood().add(node)
   
-  // 单位向量
-  const ux = dx / distance
-  const uy = dy / distance
+  // 淡化所有元素
+  cy.elements().addClass('faded')
   
-  // 节点实际像素半径（节点的尺寸是 symbolSize * 2.0，半径是其中一半）
-  const sourceRadiusPx = sourceNode.symbolSize
-  const targetRadiusPx = targetNode.symbolSize
+  // 高亮相邻元素
+  neighborhood.removeClass('faded')
+  neighborhood.addClass('highlighted')
+}
+
+// 清除高亮
+const clearHighlight = () => {
+  if (!cy) return
+  cy.elements().removeClass('faded highlighted')
+}
+
+// 选择图谱
+const selectGraph = (graph: any) => {
+  console.log('选择图谱:', graph.name)
+  selectedGraph.value = graph
+  loading.value = true
   
-  // 计算从源节点中心到边缘的距离
-  const sourceEdgeX = sourceX + ux * sourceRadiusPx
-  const sourceEdgeY = sourceY + uy * sourceRadiusPx
-  
-  // 计算到目标节点边缘的距离（留出箭头空间）
-  const arrowLength = 8  // 箭头长度
-  const targetEdgeX = targetX - ux * (targetRadiusPx + arrowLength)
-  const targetEdgeY = targetY - uy * (targetRadiusPx + arrowLength)
-  
-  // 将像素坐标转换回百分比
-  const adjustedSourceX = (sourceEdgeX / containerWidth) * 100
-  const adjustedSourceY = (sourceEdgeY / containerHeight) * 100
-  const adjustedTargetX = (targetEdgeX / containerWidth) * 100
-  const adjustedTargetY = (targetEdgeY / containerHeight) * 100
-  
-  return {
-    x1: adjustedSourceX,
-    y1: adjustedSourceY,
-    x2: adjustedTargetX,
-    y2: adjustedTargetY
+  setTimeout(() => {
+    loading.value = false
+    initCytoscape()
+  }, 500)
+}
+
+// 缩放控制
+const zoomIn = () => {
+  if (!cy) return
+  cy.zoom(cy.zoom() * 1.2)
+}
+
+const zoomOut = () => {
+  if (!cy) return
+  cy.zoom(cy.zoom() * 0.8)
+}
+
+const fitGraph = () => {
+  if (!cy) return
+  cy.fit(undefined, 30)
+}
+
+const resetGraph = () => {
+  if (!cy) return
+  cy.reset()
+  applyLayout()
+}
+
+// 切换标签显示
+const toggleLabels = () => {
+  showLabels.value = !showLabels.value
+  if (cy) {
+    cy.nodes().style('label', showLabels.value ? 'data(name)' : '')
   }
 }
 
-// 根据ID获取节点
-const getNodeById = (nodeId) => {
-  return currentNodes.value.find(n => n.id === nodeId)
+// 应用布局
+const applyLayout = () => {
+  if (!cy) return
+  
+  const layout = cy.layout({
+    ...getLayoutOptions(),
+    animate: true,
+    animationDuration: 1000
+  })
+  
+  layout.run()
+}
+
+// 导出图片
+const exportImage = () => {
+  if (!cy) return
+  
+  const png = cy.png({
+    output: 'blob',
+    bg: '#ffffff',
+    full: true,
+    scale: 2
+  })
+  
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(png as Blob)
+  link.download = `${selectedGraph.value?.name || 'knowledge-graph'}.png`
+  link.click()
+  
+  ElMessage.success('图谱已导出为PNG图片')
+}
+
+// 聚焦到指定节点
+const focusNode = (nodeId: string) => {
+  if (!cy) return
+  
+  const node = cy.getElementById(nodeId)
+  if (node) {
+    cy.animate({
+      zoom: 1.5,
+      center: { eles: node }
+    }, {
+      duration: 500
+    })
+    node.select()
+    selectedNode.value = node.data()
+    highlightNeighborhood(node)
+  }
+}
+
+// 获取节点的邻居节点
+const getNodeNeighbors = (nodeId: string) => {
+  if (!cy || !nodeId) return []
+  
+  const node = cy.getElementById(nodeId)
+  if (!node) return []
+  
+  return node.neighborhood('node').map(n => n.data())
 }
 
 // 获取类别标签
-const getCategoryLabel = (category) => {
-  const labels = {
+const getCategoryLabel = (category: string) => {
+  const labels: { [key: string]: string } = {
     core: '核心概念',
     design: '总体设计',
     system: '系统组成',
@@ -615,6 +827,18 @@ const getCategoryLabel = (category) => {
     validation: '试验验证'
   }
   return labels[category] || category
+}
+
+const getDomainColor = (domain: string) => {
+  const colors: { [key: string]: string } = {
+    '人工智能': 'danger',
+    '机器学习': 'success',
+    '深度学习': 'warning',
+    '自然语言处理': 'info',
+    '计算机视觉': 'primary',
+    '数据挖掘': ''
+  }
+  return colors[domain] || ''
 }
 
 const editGraph = (graph: any) => {
@@ -643,7 +867,10 @@ const deleteGraph = (graph: any) => {
       ElMessage.success('删除成功')
       if (selectedGraph.value?.id === graph.id) {
         selectedGraph.value = null
-        currentNodes.value = []
+        if (cy) {
+          cy.destroy()
+          cy = null
+        }
       }
     }
   })
@@ -704,14 +931,21 @@ const exportGraph = () => {
   ElMessage.info('导出功能开发中...')
 }
 
-const addNode = () => {
-  ElMessage.info('添加节点功能开发中...')
-}
+// 监听布局变化
+watch(currentLayout, () => {
+  applyLayout()
+})
 
 // 生命周期
 onMounted(() => {
   console.log('KnowledgeGraph 页面加载完成')
-  // 默认不自动选择，让用户手动选择
+})
+
+onBeforeUnmount(() => {
+  if (cy) {
+    cy.destroy()
+    cy = null
+  }
 })
 </script>
 
@@ -751,28 +985,74 @@ onMounted(() => {
   color: #409eff;
 }
 
-
-
 .header-actions {
   display: flex;
   gap: 10px;
 }
 
-.stats-section {
-  margin-bottom: 20px;
+.main-content {
+  height: calc(100vh - 180px);
 }
 
-.combined-stats-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.graph-list-card {
+  height: 100%;
 }
 
-.vertical-stats-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  margin-top: 16px;
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.graph-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.graph-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  margin-bottom: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.graph-item:hover {
+  background: #e9ecef;
+  transform: translateX(5px);
+}
+
+.graph-item.active {
+  background: #409eff;
+  color: white;
+}
+
+.graph-info {
+  flex: 1;
+}
+
+.graph-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.graph-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.node-count {
+  font-size: 12px;
+  color: #999;
+}
+
+.graph-item.active .node-count {
+  color: rgba(255,255,255,0.7);
 }
 
 .vertical-stats-list {
@@ -820,175 +1100,25 @@ onMounted(() => {
   margin-left: 12px;
 }
 
-.combined-stats-grid {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-}
-
-.stats-item {
-  flex: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 12px;
-  position: relative;
-  min-height: 50px;
-}
-
-.stats-item:not(:last-child) {
-  border-right: 1px solid #e4e7ed;
-}
-
-.stats-item-content {
-  flex: 1;
-}
-
-.stats-item-number {
-  font-size: 20px;
-  font-weight: bold;
-  color: #303133;
-  line-height: 1;
-  margin-bottom: 2px;
-}
-
-.stats-item-label {
-  margin-top: 0;
-  color: #909399;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.stats-item-icon {
-  font-size: 20px;
-  opacity: 0.4;
-  margin-left: 12px;
-}
-
-.stat-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-content {
-  position: relative;
-  z-index: 2;
-  padding: 8px 12px;
-}
-
-.stat-number {
-  font-size: 20px;
-  font-weight: bold;
-  color: #303133;
-  line-height: 1;
-  margin-bottom: 2px;
-}
-
-.stat-label {
-  margin-top: 0;
-  color: #909399;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.stat-icon {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 24px;
-  opacity: 0.4;
-  z-index: 1;
-}
-
-.stat-card.compact {
-  min-height: 70px;
-}
-
-.stat-card.compact .el-card__body {
-  padding: 12px 16px !important;
-}
-
 .nodes-icon { color: #e74c3c; }
 .edges-icon { color: #27ae60; }
 .graphs-icon { color: #3498db; }
 .domains-icon { color: #f39c12; }
 
-.main-content {
-  height: calc(100vh - 300px);
-}
-
-.graph-list-card {
-  height: 100%;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.graph-list {
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.graph-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  margin-bottom: 10px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.graph-item:hover {
-  background: #e9ecef;
-  transform: translateX(5px);
-}
-
-.graph-item.active {
-  background: #409eff;
-  color: white;
-}
-
-.graph-info {
-  flex: 1;
-}
-
-.graph-name {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-
-
-.graph-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.node-count {
-  font-size: 12px;
-  color: #999;
-}
-
-.graph-item.active .node-count {
-  color: rgba(255,255,255,0.7);
-}
-
 .graph-viewer-card {
   height: 100%;
+}
+
+.viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .viewer-title {
   font-size: 18px;
   font-weight: bold;
+  color: #303133;
 }
 
 .viewer-controls {
@@ -998,8 +1128,10 @@ onMounted(() => {
 }
 
 .graph-container {
-  height: 800px;
+  height: 780px;
   position: relative;
+  background: white;
+  border-radius: 8px;
 }
 
 .empty-state {
@@ -1007,6 +1139,22 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.empty-content {
+  text-align: center;
+}
+
+.empty-text {
+  margin-top: 20px;
+  font-size: 16px;
+  color: #909399;
+}
+
+.empty-hint {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #c0c4cc;
 }
 
 .loading-state {
@@ -1023,8 +1171,6 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  color: #909399;
 }
 
 .loading-icon {
@@ -1041,204 +1187,15 @@ onMounted(() => {
   }
 }
 
-/* 简单图谱样式 */
-.simple-graph-container {
-  height: 100%;
-  padding: 10px;
-  position: relative;
-}
-
-.simple-graph {
-  height: 100%;
-  position: relative;
-  background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
-  border-radius: 8px;
-  padding: 10px;
-  border: 1px solid #e3e8ff;
-  display: flex;
-  flex-direction: column;
-}
-
-.simple-graph h3 {
-  text-align: center;
-  margin-bottom: 15px;
-  color: #1e40af;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-
-
-.graph-visualization {
-  position: relative;
-  flex: 1;
-  margin-bottom: 5px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: white;
-  min-height: 400px;
-}
-
-.relation-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.graph-nodes {
-  position: relative;
+.cytoscape-container {
   width: 100%;
   height: 100%;
-  z-index: 2;
+  position: relative;
 }
 
-.graph-node {
-  position: absolute;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  border: 2px solid rgba(255,255,255,0.3);
-  backdrop-filter: blur(4px);
+.node-detail {
+  padding: 10px 0;
 }
-
-.graph-node:hover {
-  transform: scale(1.15);
-  z-index: 10;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
-}
-
-.node-content {
-  text-align: center;
-  padding: 8px 12px;
-}
-
-.node-name {
-  color: #1e40af; /* 深蓝色，对比度高 */
-  font-size: 12px;
-  font-weight: bold;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-  line-height: 1.3;
-  text-align: center;
-  word-break: break-word;
-  padding: 2px;
-}
-
-.relations-panel {
-  background: white;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-left: 3px solid #3b82f6;
-}
-
-.relations-panel h4 {
-  margin: 0 0 8px 0;
-  color: #1e40af;
-  font-size: 13px;
-  font-weight: bold;
-}
-
-.relation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.relation-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  padding: 2px 0;
-}
-
-.source-node {
-  color: #dc2626;
-  font-weight: bold;
-  background: #fef2f2;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.relation-arrow {
-  color: #475569; /* 更深的灰色，对比度更高 */
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.target-node {
-  color: #059669;
-  font-weight: bold;
-  background: #f0fdf4;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-
-
-
-
-.graph-legend {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background: white;
-  padding: 10px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  min-width: 120px;
-}
-
-.graph-legend h4 {
-  margin: 0 0 8px 0;
-  font-size: 13px;
-  color: #303133;
-  font-weight: bold;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  font-size: 11px;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.legend-color.core { background: #e74c3c; }
-.legend-color.design { background: #3498db; }
-.legend-color.system { background: #2ecc71; }
-.legend-color.structure { background: #f39c12; }
-.legend-color.performance { background: #9b59b6; }
-.legend-color.theory { background: #1abc9c; }
-.legend-color.analysis { background: #e67e22; }
-.legend-color.control { background: #27ae60; }
-.legend-color.validation { background: #8e44ad; }
-
-.node-tooltip {
-  position: absolute;
-  background: rgba(0,0,0,0.8);
-  color: white;
-  padding: 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  z-index: 100;
-  pointer-events: none;
-  max-width: 200px;
-}
-
-
 
 @media (max-width: 768px) {
   .page-header {
@@ -1248,6 +1205,12 @@ onMounted(() => {
   
   .main-content .el-col {
     margin-bottom: 20px;
+  }
+  
+  .viewer-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
   }
 }
 </style>
