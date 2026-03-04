@@ -137,6 +137,19 @@ export async function TranscribeAudio(audioBlob: Blob, apiKey: string = '') {
 
         const result = await response.json()
         console.log('API 成功响应:', result)
+        console.log('API 响应类型:', typeof result)
+        
+        // 详细记录返回数据的结构
+        if (typeof result === 'object' && result !== null) {
+            console.log('API 响应对象的所有字段:', Object.keys(result))
+            for (const key in result) {
+                const value = result[key]
+                const valueType = typeof value
+                const valuePreview = valueType === 'string' ? `"${value.substring(0, 100)}${value.length > 100 ? '...' : ''}"` : valueType
+                console.log(`  - ${key}: ${valuePreview}`)
+            }
+        }
+        
         return result
     } catch (error: any) {
         console.error('语音转文本 API 调用异常:', error)

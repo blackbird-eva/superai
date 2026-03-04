@@ -1006,16 +1006,35 @@ const stopRecording = async () => {
                 if (typeof transcribeResult === 'string') {
                   // 如果返回的是纯文本字符串
                   recognizedText = transcribeResult
-                } else if (typeof transcribeResult === 'object') {
+                } else if (typeof transcribeResult === 'object' && transcribeResult !== null) {
                   // 尝试多种可能的字段名
-                  recognizedText = transcribeResult.text ||
-                                   transcribeResult.transcription ||
-                                   transcribeResult.result?.text ||
-                                   transcribeResult.result?.transcription ||
-                                   transcribeResult.data?.text ||
-                                   transcribeResult.data?.transcription ||
-                                   transcribeResult.output ||
-                                   ''
+                  // 优先检查 text 字段
+                  if (transcribeResult.text !== undefined && transcribeResult.text !== null) {
+                    recognizedText = String(transcribeResult.text)
+                  } else if (transcribeResult.transcription !== undefined && transcribeResult.transcription !== null) {
+                    recognizedText = String(transcribeResult.transcription)
+                  } else if (transcribeResult.result?.text !== undefined && transcribeResult.result?.text !== null) {
+                    recognizedText = String(transcribeResult.result.text)
+                  } else if (transcribeResult.result?.transcription !== undefined && transcribeResult.result?.transcription !== null) {
+                    recognizedText = String(transcribeResult.result.transcription)
+                  } else if (transcribeResult.data?.text !== undefined && transcribeResult.data?.text !== null) {
+                    recognizedText = String(transcribeResult.data.text)
+                  } else if (transcribeResult.data?.transcription !== undefined && transcribeResult.data?.transcription !== null) {
+                    recognizedText = String(transcribeResult.data.transcription)
+                  } else if (transcribeResult.output !== undefined && transcribeResult.output !== null) {
+                    recognizedText = String(transcribeResult.output)
+                  }
+                  
+                  // 如果还是空，尝试查找对象中的第一个字符串类型的值
+                  if (!recognizedText) {
+                    for (const key in transcribeResult) {
+                      if (typeof transcribeResult[key] === 'string' && transcribeResult[key].trim()) {
+                        recognizedText = transcribeResult[key]
+                        console.log(`从字段 "${key}" 提取到文本:`, recognizedText)
+                        break
+                      }
+                    }
+                  }
                 }
 
                 if (recognizedText && recognizedText.trim()) {
@@ -1039,17 +1058,27 @@ const stopRecording = async () => {
                   // 未找到识别文本，输出详细错误信息
                   console.error('未找到识别文本，返回结果:', transcribeResult)
                   transcriptionStatus.value = 'failed'
-                  transcriptionError.value = '未返回识别结果'
-
-                  // 尝试提供更详细的错误信息
-                  let errorMsg = '语音转文本未返回结果'
-                  if (typeof transcribeResult === 'object') {
+                  
+                  // 提供更详细的调试信息
+                  let debugInfo = ''
+                  if (typeof transcribeResult === 'object' && transcribeResult !== null) {
                     const keys = Object.keys(transcribeResult)
-                    if (keys.length > 0) {
-                      errorMsg += ` (返回字段: ${keys.join(', ')})`
-                    }
+                    debugInfo = `返回字段: ${keys.join(', ')}`
+                    
+                    // 显示每个字段的值
+                    const fieldValues = keys.map(key => {
+                      const value = transcribeResult[key]
+                      const valueStr = typeof value === 'string' ? `"${value}"` : typeof value
+                      return `${key}=${valueStr}`
+                    }).join(', ')
+                    
+                    console.log('字段值详情:', fieldValues)
+                    transcriptionError.value = `未返回有效文本 (${debugInfo})`
+                  } else {
+                    transcriptionError.value = '未返回识别结果'
                   }
-                  ElMessage.warning(errorMsg)
+                  
+                  ElMessage.warning(`语音转文本未返回结果。${debugInfo ? debugInfo : '请检查API返回格式'}`)
                 }
               } catch (error: any) {
                 console.error('语音转文本失败:', error)
