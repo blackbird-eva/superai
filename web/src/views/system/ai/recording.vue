@@ -473,19 +473,67 @@
         <div class="notes-section">
           <div class="section-header">
             <h3>会议笔记</h3>
+            <el-tag v-if="notesHistory.length > 0" type="info" size="small">
+              {{ notesHistory.length }} 条记录
+            </el-tag>
           </div>
-          
+
+          <!-- 笔记输入区 -->
           <el-input
             v-model="meetingNotes"
             type="textarea"
-            :rows="6"
+            :rows="4"
             placeholder="记录会议要点和备注..."
             class="notes-input"
+            :disabled="!selectedMeeting"
           />
-          
-          <el-button type="primary" @click="saveNotes" style="width: 100%; margin-top: 12px;">
+
+          <el-button
+            type="primary"
+            @click="saveNotes"
+            style="width: 100%; margin-top: 12px;"
+            :disabled="!selectedMeeting || !meetingNotes.trim()"
+          >
             保存笔记
           </el-button>
+
+          <!-- 笔记历史列表 -->
+          <div v-if="notesHistory.length > 0" class="notes-history">
+            <div class="notes-history-header">
+              <span class="history-title">历史记录</span>
+              <el-button text size="small" icon="Delete" @click="notesHistory = []; if(selectedMeeting) selectedMeeting.notesHistory = []">
+                清空
+              </el-button>
+            </div>
+
+            <div class="notes-list">
+              <div
+                v-for="note in notesHistory"
+                :key="note.id"
+                class="note-item"
+              >
+                <div class="note-header">
+                  <div class="note-time">
+                    <el-icon><Clock /></el-icon>
+                    <span>{{ formatNoteTime(note.timestamp) }}</span>
+                  </div>
+                  <el-button
+                    text
+                    type="danger"
+                    size="small"
+                    icon="Delete"
+                    @click="deleteNote(note.id)"
+                  >
+                  </el-button>
+                </div>
+                <div class="note-content">
+                  {{ note.content }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-empty v-else description="暂无笔记记录" :image-size="80" />
         </div>
 
         <!-- 录音历史 -->
@@ -605,7 +653,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Microphone, VideoPlay, VideoPause, Calendar, Clock, Location, User,
   VideoCamera, SwitchButton, TrendCharts, Files, Loading, Select, CircleClose,
-  Document, CopyDocument, ChatDotRound, List, Warning, DocumentCopy
+  Document, CopyDocument, ChatDotRound, List, Warning, DocumentCopy, Delete
 } from '@element-plus/icons-vue'
 import {
   StartRecording, PauseRecording, ResumeRecording, StopRecording, AddRecordingMark,
@@ -638,7 +686,21 @@ const meetings = ref<any[]>([
       topic: '直升机设计方案评审',
       points: ['讨论了主旋翼设计', '分析了动力系统配置', '评估了结构强度'],
       decisions: ['采用4叶铰接式旋翼', '使用涡轴-8C发动机']
-    }
+    },
+    notesHistory: [
+      {
+        id: 1706755200000,
+        content: '会议重点讨论了主旋翼的铰接式设计，李四提出了三点优化建议。',
+        timestamp: new Date('2024-01-24T10:15:00').toISOString(),
+        author: '当前用户'
+      },
+      {
+        id: 1706755300000,
+        content: '关于发动机选型，团队一致同意使用涡轴-8C，但需要进一步评估冷却系统。',
+        timestamp: new Date('2024-01-24T10:45:00').toISOString(),
+        author: '当前用户'
+      }
+    ]
   },
   {
     id: 3,
@@ -655,7 +717,8 @@ const meetings = ref<any[]>([
     recordStartTime: null,
     totalRecordingTime: 0,
     recordings: [],
-    summary: null
+    summary: null,
+    notesHistory: []
   }
 ])
 
@@ -700,6 +763,7 @@ const transcriptionError = ref('')
 
 // 会议笔记
 const meetingNotes = ref('')
+const notesHistory = ref<any[]>([])
 
 // 生成摘要状态
 const generatingSummary = ref(false)
@@ -782,6 +846,10 @@ const selectMeeting = (meeting: any) => {
   // 加载标记和转录
   marks.value = meeting.marks || []
   realtimeTranscription.value = meeting.transcription || []
+
+  // 加载笔记历史
+  notesHistory.value = meeting.notesHistory || []
+  meetingNotes.value = ''
 
   // 根据转录内容设置状态
   if (realtimeTranscription.value.length > 0) {
@@ -1678,10 +1746,69 @@ const downloadTranscription = () => {
 
 // 保存笔记
 const saveNotes = () => {
-  if (selectedMeeting.value) {
-    selectedMeeting.value.notes = meetingNotes.value
+  if (!selectedMeeting.value) {
+    ElMessage.warning('请选择会议')
+    return
   }
+
+  if (!meetingNotes.value.trim()) {
+    ElMessage.warning('请输入笔记内容')
+    return
+  }
+
+  // 创建新的笔记记录
+  const newNote = {
+    id: Date.now(),
+    content: meetingNotes.value.trim(),
+    timestamp: new Date().toISOString(),
+    author: '当前用户'
+  }
+
+  // 添加到历史记录
+  notesHistory.value.unshift(newNote)
+
+  // 保存到会议对象
+  if (!selectedMeeting.value.notesHistory) {
+    selectedMeeting.value.notesHistory = []
+  }
+  selectedMeeting.value.notesHistory = notesHistory.value
+
+  // 清空输入框
+  meetingNotes.value = ''
+
   ElMessage.success('笔记已保存')
+}
+
+// 删除笔记
+const deleteNote = (noteId: number) => {
+  notesHistory.value = notesHistory.value.filter(note => note.id !== noteId)
+  if (selectedMeeting.value) {
+    selectedMeeting.value.notesHistory = notesHistory.value
+  }
+  ElMessage.success('笔记已删除')
+}
+
+// 格式化笔记时间
+const formatNoteTime = (timestamp: string) => {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  if (diff < 60000) { // 1分钟内
+    return '刚刚'
+  } else if (diff < 3600000) { // 1小时内
+    return `${Math.floor(diff / 60000)}分钟前`
+  } else if (diff < 86400000) { // 24小时内
+    return `${Math.floor(diff / 3600000)}小时前`
+  } else {
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
 }
 
 // 播放录音
@@ -2389,6 +2516,87 @@ onUnmounted(() => {
 /* 笔记输入 */
 .notes-input {
   margin-bottom: 12px;
+}
+
+/* 笔记历史 */
+.notes-history {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e4e7ed;
+}
+
+.notes-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.history-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notes-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notes-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.notes-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.note-item {
+  background: #fafbfc;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.3s ease;
+}
+
+.note-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #c0c4cc;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.note-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.note-time .el-icon {
+  font-size: 14px;
+}
+
+.note-content {
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* 录音历史 */
