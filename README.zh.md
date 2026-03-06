@@ -1,6 +1,5 @@
 # SuperAI：智能办公AI系统
 
-![SuperAI 横幅](https://via.placeholder.com/1200x300?text=SuperAI+-+智能办公自动化系统)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![Docker 支持](https://img.shields.io/badge/Docker-支持-green.svg)](https://www.docker.com/)
 [![LLM 驱动](https://img.shields.io/badge/大语言模型-驱动-purple.svg)](https://zh.wikipedia.org/zh-cn/大语言模型)
@@ -44,3 +43,4 @@ git clone https://github.com/你的用户名/superai.git
 
 # 进入项目目录
 cd superai
+
