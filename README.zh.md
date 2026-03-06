@@ -1,32 +1,46 @@
-create  new class(model)
+# SuperAI：智能办公AI系统
 
-##  class Docxfile 文件管理
+![SuperAI 横幅](https://via.placeholder.com/1200x300?text=SuperAI+-+智能办公自动化系统)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![Docker 支持](https://img.shields.io/badge/Docker-支持-green.svg)](https://www.docker.com/)
+[![LLM 驱动](https://img.shields.io/badge/大语言模型-驱动-purple.svg)](https://zh.wikipedia.org/zh-cn/大语言模型)
+[![MIT 许可证](https://img.shields.io/badge/许可证-MIT-yellow.svg)](./LICENSE)
 
-        filename , 
-        about text(文档简介)
-        type(docx,ppt, pdf)
-        transtask bool （是否需要翻译）
-        graphtask bool (知识图谱)
-        share bool (是否分享)
-        userversion bool (启用版本控制）
+SuperAI 是面向现代办公场景的企业级 AI 智能系统，基于大语言模型（LLM）构建，提供文本翻译、文档管理、会议纪要自动化、AI 生成 PPT、3D 文件管理、智能代理编排六大核心能力，并整合全栈 Web 服务，实现端到端的办公自动化流程。
 
-##  class Docxpages  文件内容
+## 📋 项目概述
+SuperAI 旨在通过先进的 AI 技术简化并自动化核心办公任务，支持**本地脚本运行**（适用于离线/私有化部署场景）和**云原生 Web 服务部署**（适用于企业级规模化使用），适配个人办公和团队协作等多种场景。系统将六大办公核心功能整合到统一平台，大幅降低人工操作成本，提升全流程办公效率。
 
-docs( docxfile  ) 文档 选择一个
-        about string 文档简介
-        order int 排序(default 0)
-        title string 标题
-        subtitle string 副标题
-        subweight int 标题级别(0-10,0为正文，1为一级标题，2为二级标题...)
-        content string 内容
-        contentedittime time.Time 内容编辑时间
-        contentedituser user 内容编辑人
-        transcontent string EN翻译内容
-        transnote string 翻译备注
-        transcheck1 bool 翻译校对1
-        transcheck2 bool 翻译校对2
-        translast bool 翻译最后确认
-        transmanger user 翻译负责人
-        docmanger user 文档负责人
-        version  int 版本号
+## 🌟 核心功能
+| 功能分类 | 核心能力 |
+|----------|----------|
+| **文本翻译** | • 实时多语言翻译（支持中英日等20+主流语言）<br>• 批量文档翻译（保留 PPT/Word/Excel/PDF 原格式）<br>• 行业术语上下文感知翻译 |
+| **文档管理** | • 办公文档统一存储、分类与版本控制<br>• 基于大语言模型的语义索引全文检索<br>• 基于角色的权限控制与安全备份/导出 |
+| **会议纪要** | • 音视频转文字（准确率 98%+）<br>• 自动提取要点、行动项、决策记录<br>• 一键将纪要格式化为标准化模板 |
+| **AI 生成 PPT** | • 本地脚本/RESTful API 生成高质量 PPTX 文件<br>• 支持自定义模板与内容大纲自动补全<br>• 企业级演示文稿风格统一与品牌合规<br>• 内置 PPT 格式/内容合规校验器 |
+| **3D 文件管理** | • 3D 模型文件上传、预览、版本控制<br>• 支持主流 3D 格式（FBX、OBJ、GLB、STL）<br>• 3D 资产协作的权限管理 |
+| **智能代理管理** | • 为专属办公场景定制 AI 代理（翻译/会议/PPT/3D）<br>• 代理生命周期管理（创建、部署、监控）<br>• AI 代理任务调度与性能分析 |
 
+### 工程化特性
+- **全栈 Web 服务**：生产级 Python 后端，支持 Docker 容器化与插件扩展
+- **便捷部署**：预置脚本，支持本地/云端快速部署
+- **可靠测试**：内置校验套件与调试工具，保障系统稳定性
+- **多环境支持**：完善的开发/测试/生产环境配置管理
+
+## 🚀 快速开始
+### 环境前置要求
+安装前请确保环境满足以下条件：
+- Python 3.8 及以上版本
+- Pip（Python 包管理工具）
+- Docker（可选，用于容器化部署）
+- LLM API 密钥（如 OpenAI GPT-3.5/4、百度文心一言、阿里通义千问等）
+- Git（用于克隆代码仓库）
+
+### 本地部署
+#### 1. 克隆代码仓库
+```bash
+# 将远程仓库克隆到本地
+git clone https://github.com/你的用户名/superai.git
+
+# 进入项目目录
+cd superai
