@@ -1,6 +1,5 @@
 # SuperAI: Office AI Intelligent System
 
-![SuperAI Banner](https://via.placeholder.com/1200x300?text=SuperAI+-+Intelligent+Office+Automation)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![Docker Support](https://img.shields.io/badge/Docker-Supported-green.svg)](https://www.docker.com/)
 [![LLM Powered](https://img.shields.io/badge/LLM-Powered-purple.svg)](https://en.wikipedia.org/wiki/Large_language_model)
