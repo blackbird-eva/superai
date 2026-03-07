@@ -159,8 +159,10 @@ export default defineComponent({
 			if (!formRef.value) return
 			await formRef.value.validate((valid: any) => {
 				if (valid) {
-					loginApi.loginChangePwd({ ...state.ruleForm, password: Md5.hashStr(state.ruleForm.password), password_regain: Md5.hashStr(state.ruleForm.password_regain) }).then((res: any) => {
+					loginApi.loginChangePwd({ ...state.ruleForm, password: Md5.hashStr(state.ruleForm.password), password_regain: Md5.hashStr(state.ruleForm.password_regain) }).then(async (res: any) => {
 						if (res.code === 2000) {
+							// 修改密码成功后，更新用户信息，获取最新的 pwd_change_count
+							await useUserInfo().setUserInfos();
 							if (!themeConfig.value.isRequestRoutes) {
 								// 前端控制路由，2、请注意执行顺序
 								initFrontEndControlRoutes();
