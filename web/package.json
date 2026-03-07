@@ -28,6 +28,7 @@
 		"axios": "^1.7.4",
 		"countup.js": "^2.8.0",
 		"cropperjs": "^1.6.2",
+		"cytoscape": "^3.33.1",
 		"date-holidays": "^3.24.1",
 		"e-icon-picker": "2.1.1",
 		"echarts": "^5.5.1",
@@ -39,8 +40,8 @@
 		"html2canvas": "^1.4.1",
 		"js-cookie": "^3.0.5",
 		"js-table2excel": "^1.1.2",
-		"jsplumb": "^2.15.6",
 		"jspdf": "^2.5.2",
+		"jsplumb": "^2.15.6",
 		"less": "^4.3.0",
 		"lodash-es": "^4.17.21",
 		"lunar-javascript": "^1.7.1",
@@ -69,11 +70,10 @@
 		"vue-grid-layout": "^3.0.0-beta1",
 		"vue-i18n": "^9.14.0",
 		"vue-qr": "^4.0.9",
-	"vue-router": "^4.4.3",
-	"vxe-table": "^4.6.18",
-	"xe-utils": "^3.5.30",
-	"cytoscape": "^3.33.1"
-},
+		"vue-router": "^4.4.3",
+		"vxe-table": "^4.6.18",
+		"xe-utils": "^3.5.30"
+	},
 	"devDependencies": {
 		"@types/node": "^18.19.42",
 		"@types/nprogress": "^0.2.3",

@@ -29,7 +29,7 @@ from dvadmin.system.views.system_config import SystemConfigViewSet
 from dvadmin.system.views.user import UserViewSet
 from dvadmin.system.views.menu_field import MenuFieldViewSet
 from dvadmin.system.views.download_center import DownloadCenterViewSet
-from dvadmin.system.views.aichat import AIChatView
+from dvadmin.system.views.aichat_mock import AIChatView  # 使用模拟接口（避免 chromadb 依赖）
 from dvadmin.system.views.meeting.meeting import (
     StartRecordingView, PauseRecordingView, ResumeRecordingView,
     StopRecordingView, AddRecordingMarkView, SaveRecordingFileView,
@@ -80,7 +80,7 @@ urlpatterns = [
     path('transdicts/ppt/upload_and_generate/', UploadFilesAndGeneratePPTView.as_view()),
  
     path('mytask/hello/', MyTaskHelloView.as_view()),
-    path('aichat/chat/', AIChatView.as_view()),  # AI聊天接口
+    path('aichat/chat/', AIChatView.as_view()),  # AI聊天接口（模拟版本）
     # 会议录音接口
     path('meeting/recording/start/', StartRecordingView.as_view()),
     path('meeting/recording/pause/', PauseRecordingView.as_view()),
