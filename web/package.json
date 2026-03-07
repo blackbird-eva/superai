@@ -69,10 +69,11 @@
 		"vue-grid-layout": "^3.0.0-beta1",
 		"vue-i18n": "^9.14.0",
 		"vue-qr": "^4.0.9",
-		"vue-router": "^4.4.3",
-		"vxe-table": "^4.6.18",
-		"xe-utils": "^3.5.30"
-	},
+	"vue-router": "^4.4.3",
+	"vxe-table": "^4.6.18",
+	"xe-utils": "^3.5.30",
+	"cytoscape": "^3.33.1"
+},
 	"devDependencies": {
 		"@types/node": "^18.19.42",
 		"@types/nprogress": "^0.2.3",

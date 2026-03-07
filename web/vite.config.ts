@@ -24,7 +24,10 @@ const viteConfig = defineConfig((mode: ConfigEnv) => {
 	return {
 		plugins: [vue(), /* vueJsx(), */ vueSetupExtend()],
 		root: process.cwd(),
-		resolve: { alias },
+		resolve: {
+			alias,
+			extensions: ['.vue', '.js', '.ts', '.jsx', '.tsx', '.json']
+		},
 		base: mode.command === 'serve' ? './' : env.VITE_PUBLIC_PATH,
 		optimizeDeps: {
 			include: ['element-plus/es/locale/lang/zh-cn', 'element-plus/es/locale/lang/en', 'element-plus/es/locale/lang/zh-tw'],

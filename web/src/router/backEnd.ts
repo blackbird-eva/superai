@@ -51,8 +51,11 @@ export async function initBackEndControlRoutes() {
 	// https://gitee.com/lyt-top/vue-next-admin/issues/I64HVO
 	// if (res.data.length <= 0) return Promise.resolve(true);
 	// 处理路由（component），替换 dynamicRoutes（/@/router/route）第一个顶级 children 的路由
+	console.log('[Router] 开始处理路由，原始数据:', res.data);
 	const {frameIn,frameOut} = handleMenu(res.data)
+	console.log('[Router] 处理后的路由数据:', frameIn);
 	dynamicRoutes[0].children = await backEndComponent(frameIn);
+	console.log('[Router] 最终的动态路由:', dynamicRoutes[0].children);
 	// 添加动态路由
 	await setAddRoute();
 	// 设置路由到 vuex routesList 中（已处理成多级嵌套路由）及缓存多级嵌套数组处理后的一维数组
@@ -156,7 +159,18 @@ export function setBackEndControlRefreshRoutes() {
 export function backEndComponent(routes: any) {
 	if (!routes) return;
 	return routes.map((item: any) => {
-		if (item.component) item.component = dynamicImport(dynamicViewsModules, item.component as string);
+		console.log('[Router] 处理路由:', item.name, 'component:', item.component);
+		if (item.component) {
+			const componentPath = item.component as string;
+			const componentFn = dynamicImport(dynamicViewsModules, componentPath);
+			if (componentFn) {
+				item.component = componentFn;
+			} else {
+				console.error(`[Router] glob 匹配失败，使用动态导入: ${componentPath}`);
+				// 使用 Vite 的动态导入，注意这里的路径处理
+				item.component = () => import(`../views/${componentPath}.vue`);
+			}
+		}
 		if(item.is_catalog){
 			// 对目录的处理
 			item.component = dynamicImport(dynamicViewsModules, 'layout/routerView/parent')
@@ -195,19 +209,45 @@ export function backEndComponent(routes: any) {
  * @returns 返回处理成函数后的 component
  */
 export function dynamicImport(dynamicViewsModules: Record<string, Function>, component: string) {
+	if (!component) return null;
+
 	const keys = Object.keys(dynamicViewsModules);
-	const matchKeys = keys.filter((key) => {
-		const k = key.replace(/..\/views|../, '');
-		const k0 = k.replace("ode_modules/@great-dream/", '')
-		const k1 = k0.replace("/plugins", '')
-		const newComponent = component.replace("plugins/", "")
-		return k1.startsWith(`${newComponent}`) || k1.startsWith(`/${newComponent}`);
-	});
-	if (matchKeys?.length === 1) {
-		const matchKey = matchKeys[0];
-		return dynamicViewsModules[matchKey];
+
+	console.log(`[Router] ========== 开始匹配组件 ==========`);
+	console.log(`[Router] 查找的组件: ${component}`);
+
+	// 处理 component 路径，移除 .vue 后缀
+	let newComponent = component.replace('.vue', '').replace(/^\/+/, '');
+
+	// 生成可能的组件路径
+	const possiblePaths = [
+		newComponent,
+		`${newComponent}.vue`,
+		`/${newComponent}`,
+		`/${newComponent}.vue`,
+		`system/${newComponent}`,
+		`system/${newComponent}.vue`
+	];
+
+	console.log(`[Router] 尝试匹配的路径:`, possiblePaths);
+
+	// 遍历所有可能的路径进行匹配
+	for (const path of possiblePaths) {
+		// 检查 keys 中是否有匹配的
+		for (const key of keys) {
+			let k = key
+				.replace(/..\/views|../, '')
+				.replace("ode_modules/@great-dream/", '')
+				.replace("/plugins", '');
+
+			if (k.endsWith(path) || k === path) {
+				console.log(`[Router] 匹配成功! key: ${key}, 匹配路径: ${path}`);
+				return dynamicViewsModules[key];
+			}
+		}
 	}
-	if (matchKeys?.length > 1) {
-		return false;
-	}
+
+	console.error(`[Router] ========== 匹配失败 ==========`);
+	console.error(`[Router] 所有可用的 keys (前20个):`, keys.slice(0, 20));
+	return null;
 }
