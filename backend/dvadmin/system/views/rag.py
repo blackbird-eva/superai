@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 import chromadb
 from chromadb import PersistentClient
@@ -7,6 +8,16 @@ from typing import List, Dict, Optional
 import uuid
 from pathlib import Path
 from docx import Document
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
+
+# 设置标准输出编码为UTF-8（用于Windows）
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # 导入AI服务
 try:
@@ -36,6 +47,10 @@ class RAGSystem:
             settings=Settings(anonymized_telemetry=False)
         )
         
+        # 初始化备选嵌入服务（使用OpenAI兼容的API）
+        self.openai_api_key = "sk-1065ae7327d84478815f267ef69ca5db"
+        self.openai_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        
         # 检查连接是否可用
         self._test_connection()
         
@@ -44,19 +59,33 @@ class RAGSystem:
         try:
             response = requests.get(f"{self.lm_studio_url}/v1/models", timeout=10)
             if response.status_code == 200:
-                print("✅ LM Studio连接成功")
+                logger.info("LM Studio连接成功")
+                self.lm_studio_available = True
             else:
-                print(f"❌ LM Studio连接失败，状态码: {response.status_code}")
+                logger.warning(f"LM Studio连接失败，状态码: {response.status_code}")
+                self.lm_studio_available = False
         except requests.exceptions.ConnectionError:
-            print("❌ 无法连接到LM Studio，请确保LM Studio正在运行")
-            raise
+            logger.warning("无法连接到LM Studio，将使用备选嵌入服务")
+            self.lm_studio_available = False
     
     def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        使用LM Studio获取文本嵌入向量
+        使用LM Studio或备选服务获取文本嵌入向量
         :param texts: 要嵌入的文本列表
         :return: 嵌入向量列表
         """
+        # 优先使用LM Studio
+        if self.lm_studio_available:
+            try:
+                return self._get_embeddings_from_lm_studio(texts)
+            except Exception as e:
+                logger.warning(f"LM Studio嵌入失败: {str(e)}，切换到备选服务")
+                return self._get_embeddings_from_openai(texts)
+        else:
+            return self._get_embeddings_from_openai(texts)
+    
+    def _get_embeddings_from_lm_studio(self, texts: List[str]) -> List[List[float]]:
+        """使用LM Studio获取嵌入向量"""
         headers = {
             "Content-Type": "application/json"
         }
@@ -80,9 +109,72 @@ class RAGSystem:
                 embedding = data['data'][0]['embedding']  # 假设返回格式是这样的
                 embeddings.append(embedding)
             else:
-                print(f"❌ 获取嵌入失败: {response.status_code}, {response.text}")
+                logger.warning(f"获取嵌入失败: {response.status_code}, {response.text}")
                 # 返回零向量作为占位符（这可能需要根据实际情况调整）
                 embeddings.append([0.0] * 384)  # 假设向量维度是384，根据实际情况调整
+        
+        return embeddings
+    
+    def _get_embeddings_from_openai(self, texts: List[str]) -> List[List[float]]:
+        """使用OpenAI兼容API获取嵌入向量"""
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        embeddings = []
+        
+        # 检查集合的向量维度
+        if hasattr(self, 'collection'):
+            try:
+                # 获取集合中的一个向量来检查维度
+                sample_data = self.collection.get(limit=1, include=['embeddings'])
+                if sample_data and sample_data.get('embeddings') and sample_data['embeddings'][0]:
+                    self.embedding_dim = len(sample_data['embeddings'][0])
+                    logger.info(f"检测到集合向量维度: {self.embedding_dim}")
+            except Exception as e:
+                logger.warning(f"无法检测集合向量维度: {str(e)}")
+                self.embedding_dim = 768  # 默认维度
+        
+        # 使用text-embedding-v3模型，返回1024维
+        model = "text-embedding-v3"
+        
+        for text in texts:
+            payload = {
+                "model": model,
+                "input": text,
+                "parameters": {
+                    "text_type": "document"
+                }
+            }
+            
+            try:
+                response = requests.post(
+                    f"{self.openai_base_url}/embeddings",
+                    json=payload,
+                    headers=headers,
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    embedding = data['data'][0]['embedding']
+                    # 如果集合中的向量维度与当前向量维度不匹配，截断或填充
+                    if hasattr(self, 'embedding_dim') and len(embedding) != self.embedding_dim:
+                        logger.warning(f"向量维度不匹配: 需要{self.embedding_dim}维，获得{len(embedding)}维，进行裁剪")
+                        embedding = embedding[:self.embedding_dim]
+                    embeddings.append(embedding)
+                    logger.info(f"嵌入成功: {len(embedding)} 维")
+                else:
+                    logger.warning(f"嵌入失败: {response.status_code}, {response.text}")
+                    # 返回零向量作为占位符
+                    dim = self.embedding_dim if hasattr(self, 'embedding_dim') else 1024
+                    embeddings.append([0.0] * dim)
+            except Exception as e:
+                logger.warning(f"嵌入异常: {str(e)}")
+                # 返回零向量作为占位符
+                dim = self.embedding_dim if hasattr(self, 'embedding_dim') else 1024
+                embeddings.append([0.0] * dim)
         
         return embeddings
     
@@ -139,7 +231,7 @@ class RAGSystem:
                 existing_contents.add(doc_content)
         
         if not new_documents:
-            print("✅ 所有文档都已存在于数据库中，无需添加新文档")
+            logger.info("所有文档都已存在于数据库中，无需添加新文档")
             return
         
         # 提取文本内容用于嵌入
@@ -162,7 +254,7 @@ class RAGSystem:
             ids=ids
         )
         
-        print(f"✅ 成功添加 {len(new_documents)} 个新文档到集合 '{collection_name}'")
+        logger.info(f"成功添加 {len(new_documents)} 个新文档到集合 '{collection_name}'")
     
     def search(self, query: str, n_results: int = 5) -> List[Dict]:
         """

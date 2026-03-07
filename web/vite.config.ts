@@ -30,7 +30,7 @@ const viteConfig = defineConfig((mode: ConfigEnv) => {
 		},
 		base: mode.command === 'serve' ? './' : env.VITE_PUBLIC_PATH,
 		optimizeDeps: {
-			include: ['element-plus/es/locale/lang/zh-cn', 'element-plus/es/locale/lang/en', 'element-plus/es/locale/lang/zh-tw'],
+			include: ['element-plus/es/locale/lang/zh-cn', 'element-plus/es/locale/lang/en', 'element-plus/es/locale/lang/zh-tw', 'cytoscape'],
 		},
 		server: {
 			host: '0.0.0.0',
